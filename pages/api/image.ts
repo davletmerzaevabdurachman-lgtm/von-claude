@@ -2,9 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { groqChat } from "../../lib/groq";
 
 async function generateWithImageProvider(prompt: string) {
-  const key = process.env.IMAGE_API_KEY?.trim();
-  const endpoint = process.env.IMAGE_API_URL?.trim();
-  const model = process.env.IMAGE_MODEL?.trim() || "flux";
+  const key = (process.env.TREXOR_IMAGE_API_KEY || process.env.IMAGE_API_KEY)?.trim();
+  const endpoint = (process.env.TREXOR_IMAGE_API_URL || process.env.IMAGE_API_URL)?.trim();
+  const model = (process.env.TREXOR_IMAGE_MODEL || process.env.IMAGE_MODEL)?.trim() || "flux";
 
   if (!key || !endpoint) {
     throw new Error("Für Bilder fehlt IMAGE_API_KEY oder IMAGE_API_URL. Groq kann aktuell Bilder verstehen, aber nicht direkt als Bilddatei generieren.");

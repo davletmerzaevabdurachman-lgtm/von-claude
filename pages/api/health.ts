@@ -4,7 +4,7 @@ export default function handler(
   _req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const keys = [
+  const groqKeys = [
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_1,
     process.env.GROQ_API_KEY_2,
@@ -13,9 +13,11 @@ export default function handler(
 
   res.status(200).json({
     ok: true,
-    groqConfigured: keys.length > 0,
-    keysConfigured: keys.length,
-    imageConfigured: keys.length > 0,\n    imageMode: "Groq web research + 4096x4096 SVG",
+    groqConfigured: groqKeys.length > 0,
+    keysConfigured: groqKeys.length,
+    imageConfigured: Boolean(process.env.XAI_API_KEY?.trim()),
+    imageMode: "Grok Imagine",
+    imageResolution: process.env.XAI_IMAGE_RESOLUTION || "2k",
     builderConfigured: Boolean(
       process.env.GITHUB_TOKEN && process.env.BUILDER_SECRET
     ),

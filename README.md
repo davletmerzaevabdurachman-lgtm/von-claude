@@ -1,5 +1,14 @@
-# TREXOR (Kern-Prototyp)
-1. `npm install`
-2. `.env.example` -> `.env.local` kopieren und GROQ_API_KEY_1..3 eintragen
-3. `npm run dev` -> http://localhost:3000
-Auf Vercel: dieselben Variablen unter Project Settings -> Environment Variables setzen.
+# TREXOR
+
+Vercel-ready Next.js chat UI with Groq streaming.
+
+## Vercel
+Add `GROQ_API_KEY_1` and optionally `GROQ_API_KEY_2`, `GROQ_API_KEY_3`
+under **Project → Settings → Environment Variables** for Production, Preview and Development.
+Then redeploy.
+
+Models:
+- fast: `openai/gpt-oss-20b`
+- think: `openai/gpt-oss-120b`
+
+Never commit real API keys.

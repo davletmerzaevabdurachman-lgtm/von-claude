@@ -17,7 +17,7 @@ const ideas = [
 function uid(){ try{return crypto.randomUUID();}catch{return Date.now()+"-"+Math.random().toString(36).slice(2);} }
 function extractBlocks(text:string){
   const blocks:{lang:string;code:string}[]=[];
-  const re=/\`\`\`([\\w+-]*)\\s*\\n?([\\s\\S]*?)\`\`\`/g;
+  const re=/```([\w+-]*)\s*\n?([\s\S]*?)```/g;
   let match;
   while((match=re.exec(text))) blocks.push({lang:(match[1]||"text").toLowerCase(),code:match[2].trimEnd()});
   return blocks;
@@ -67,7 +67,7 @@ function CodeCard({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
 }
 
 function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
-  const re=/\`\`\`([\\w+-]*)\\s*\\n?([\\s\\S]*?)\`\`\`/g;
+  const re=/```([\w+-]*)\s*\n?([\s\S]*?)```/g;
   const parts:JSX.Element[]=[];
   let last=0, index=0, match;
   while((match=re.exec(text))){

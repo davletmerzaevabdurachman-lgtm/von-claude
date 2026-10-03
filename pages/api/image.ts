@@ -1,28 +1,20 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { geminiConfigured, geminiImage } from "../../lib/gemini";
+import { ultimateImage } from "../../lib/ultimate";
 
-export const config = {
-  api: { bodyParser: { sizeLimit: "2mb" } },
-};
+export const config = { api: { bodyParser: { sizeLimit: "4mb" } } };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Nur POST wird unterstützt." });
   }
-
   const prompt = String(req.body?.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Bild-Prompt fehlt." });
-
-  if (!geminiConfigured()) {
-    return res.status(503).json({
-      error: "GEMINI_API_KEY fehlt. Für TREXOR-Bilder muss ein Gemini API-Key gesetzt sein.",
-    });
+  if (!process.env.GEMINI_API_KEY?.trim()) {
+    return res.status(503).json({ error: "GEMINI_API_KEY fehlt. Für TREXOR-Bilder muss ein Gemini API-Key gesetzt sein." });
   }
-
   try {
-    const result = await geminiImage(prompt);
-
+    const result = await ultimateImage(prompt);
     return res.status(200).json({
       ok: true,
       imageUrl: result.imageUrl,

@@ -107,7 +107,7 @@ export default function PythonMultiTool(){
         const parsedFlags=flags.replace(/[^dgimsuvy]/g,"");
         const re=new RegExp(regex,parsedFlags);
         const matches=[...input.matchAll(new RegExp(re.source,re.flags.includes("g")?re.flags:re.flags+"g"))];
-        setOutput(matches.length?matches.map((m,i)=>\`Match \${i+1}: \${m[0]} (Index \${m.index})\`).join("\\n"):"Keine Treffer.");
+        setOutput(matches.length ? matches.map((m,i)=>"Match "+(i+1)+": "+m[0]+" (Index "+m.index+")").join("\\n") : "Keine Treffer.");
       }
     }catch(e){
       setOutput(e instanceof Error?"ERROR: "+e.message:"Fehler.");

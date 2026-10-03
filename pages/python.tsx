@@ -1,4 +1,4 @@
-import "../../styles/python-tool.css";
+import "../styles/python-tool.css";
 import { useEffect, useState } from "react";
 import Head from "next/head";
 

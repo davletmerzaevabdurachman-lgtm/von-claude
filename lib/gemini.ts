@@ -80,13 +80,12 @@ export async function geminiImage(prompt: string) {
     ].join("\n") }] }],
     {
       responseModalities: ["IMAGE"],
-      responseFormat: {
-        type: "image",
-        aspect_ratio: process.env.GEMINI_IMAGE_ASPECT_RATIO || "1:1",
-        image_size: process.env.GEMINI_IMAGE_SIZE || "2K",
+      imageConfig: {
+        aspectRatio: process.env.GEMINI_IMAGE_ASPECT_RATIO || "1:1",
+        imageSize: process.env.GEMINI_IMAGE_SIZE || "2K",
       },
       thinkingConfig: {
-        thinkingLevel: process.env.GEMINI_IMAGE_THINKING || "high",
+        thinkingLevel: process.env.GEMINI_IMAGE_THINKING || "HIGH",
       },
     }
   );

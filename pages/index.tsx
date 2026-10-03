@@ -185,9 +185,10 @@ export default function Home(){
     const text=(value??input).trim(); if(!text||busy)return;
     const id=active||uid();
     const history=[...(current?.messages||[]),{role:"user" as const,content:text}];
+    const wantsImage=mode==="image"||/(erstell|generier|zeichn|mach|create|generate|draw).*(bild|image|foto|logo|grafik|illustration)/i.test(text);
     setChats(c=>c.some(x=>x.id===id)?c.map(x=>x.id===id?{...x,messages:history}:x):[{id,title:text.slice(0,44),messages:history},...c]);
     setActive(id);setInput("");setScreen("chat");
-    if(mode==="image")askImage(id,history);else askAi(id,history);
+    if(wantsImage)askImage(id,history);else askAi(id,history);
   }
 
   function openRun(l:Lang,c:string){
@@ -263,7 +264,7 @@ export default function Home(){
             <div ref={end}/>
           </div>
           <div className="composer-wrap">
-            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v}>{think?"Think ON":"Think OFF"}</button></div>
+            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button></div>
             <div className="composer"><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder Code-Idee …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
         </section>:<section className="run">

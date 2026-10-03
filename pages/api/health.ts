@@ -15,7 +15,7 @@ export default function handler(
     ok: true,
     groqConfigured: keys.length > 0,
     keysConfigured: keys.length,
-    imageConfigured: true,
+    imageConfigured: keys.length > 0,\n    imageMode: "Groq web research + 4096x4096 SVG",
     builderConfigured: Boolean(
       process.env.GITHUB_TOKEN && process.env.BUILDER_SECRET
     ),

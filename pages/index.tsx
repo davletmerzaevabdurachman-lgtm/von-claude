@@ -17,7 +17,7 @@ const ideas = [
 function uid(){ try{return crypto.randomUUID();}catch{return Date.now()+"-"+Math.random().toString(36).slice(2);} }
 function extractBlocks(text:string){
   const blocks:{lang:string;code:string}[]=[];
-  const re=new RegExp(FENCE+"(\\\\w*)\\\\s*\\\\n?([\\\\s\\\\S]*?)(?="+FENCE+"|$)","g");
+  const re=/\`\`\`([\\w+-]*)\\s*\\n?([\\s\\S]*?)\`\`\`/g;
   let match;
   while((match=re.exec(text))) blocks.push({lang:(match[1]||"text").toLowerCase(),code:match[2].trimEnd()});
   return blocks;
@@ -25,8 +25,7 @@ function extractBlocks(text:string){
 function firstHtml(messages:Msg[]){
   for(let i=messages.length-1;i>=0;i--){
     if(messages[i].role!=="assistant") continue;
-    const blocks=extractBlocks(messages[i].content);
-    const html=blocks.find(x=>x.lang==="html");
+    const html=extractBlocks(messages[i].content).find(x=>x.lang==="html");
     if(html?.code) return html.code;
   }
   return "";
@@ -68,21 +67,20 @@ function CodeCard({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
 }
 
 function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
-  const matches=text.match(new RegExp(FENCE+"[\\\\s\\\\S]*?(?:"+FENCE+"|$)","g"))||[];
-  const pieces=text.split(new RegExp(FENCE+"[\\\\s\\\\S]*?(?:"+FENCE+"|$)","g"));
-  return <>{pieces.map((piece,i)=>{
-    const out=[];
-    const normal=piece.trim();
-    if(normal) out.push(<p key={"p"+i}>{normal}</p>);
-    const block=matches[i];
-    if(block){
-      const lines=block.slice(3).split("\\n");
-      const lang=(lines.shift()||"text").trim().toLowerCase();
-      const code=lines.join("\\n").replace(new RegExp(FENCE+"$"),"").trimEnd();
-      out.push(<CodeCard key={"c"+i} lang={lang} code={code} onRun={()=>onRun(lang as Lang,code)}/>);
-    }
-    return out;
-  })}</>;
+  const re=/\`\`\`([\\w+-]*)\\s*\\n?([\\s\\S]*?)\`\`\`/g;
+  const parts:JSX.Element[]=[];
+  let last=0, index=0, match;
+  while((match=re.exec(text))){
+    const before=text.slice(last,match.index).trim();
+    if(before) parts.push(<p key={"p"+index++}>{before}</p>);
+    const lang=(match[1]||"text").toLowerCase();
+    const code=match[2].trimEnd();
+    parts.push(<CodeCard key={"c"+index++} lang={lang} code={code} onRun={()=>onRun(lang as Lang,code)}/>);
+    last=match.index+match[0].length;
+  }
+  const tail=text.slice(last).trim();
+  if(tail) parts.push(<p key={"p"+index++}>{tail}</p>);
+  return <>{parts}</>;
 }
 
 export default function Home(){
@@ -147,35 +145,37 @@ export default function Home(){
     setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:""}]}:x));
     const controller=new AbortController(); abort.current=controller;
     try{
-      const r=await fetch("/api/chat",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:history,think})});
-      if(!r.ok||!r.body){const d=await r.json().catch(()=>null);throw new Error(d?.error||"KI-Anfrage fehlgeschlagen.");}
-      const reader=r.body.getReader(),decoder=new TextDecoder(); let buffer="";
-      while(true){
-        const item=await reader.read(); if(item.done)break;
-        buffer+=decoder.decode(item.value,{stream:true});
-        const lines=buffer.split("\\n"); buffer=lines.pop()||"";
-        for(const line of lines){
-          if(!line.startsWith("data: "))continue;
-          const payload=line.slice(6).trim(); if(!payload||payload==="[DONE]")continue;
-          try{
-            const delta=JSON.parse(payload)?.choices?.[0]?.delta?.content;
-            if(typeof delta!=="string"||!delta)continue;
-            setChats(c=>c.map(x=>{
-              if(x.id!==chatId)return x;
-              const next=[...x.messages];
-              next[index]={role:"assistant",content:(next[index]?.content||"")+delta};
-              return {...x,messages:next};
-            }));
-            await new Promise(r=>setTimeout(r,24));
-          }catch{}
-        }
+      const r=await fetch("/api/chat",{
+        method:"POST",
+        signal:controller.signal,
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({messages:history,think})
+      });
+      const data=await r.json().catch(()=>null);
+      if(!r.ok) throw new Error(data?.error||"KI-Anfrage fehlgeschlagen.");
+      const content=String(data?.content||"");
+      if(!content.trim()) throw new Error("TREXOR hat keine Antwort erhalten.");
+
+      // Smooth local typewriter effect; the server itself returns a complete, reliable JSON response.
+      for(let i=0;i<content.length;i+=4){
+        if(controller.signal.aborted) throw new DOMException("Aborted","AbortError");
+        const part=content.slice(0,Math.min(i+4,content.length));
+        setChats(c=>c.map(x=>{
+          if(x.id!==chatId)return x;
+          const next=[...x.messages];
+          next[index]={role:"assistant",content:part};
+          return {...x,messages:next};
+        }));
+        await new Promise(resolve=>setTimeout(resolve,12));
       }
     }catch(e){
       if(!(e instanceof Error&&e.name==="AbortError")){
         const msg=e instanceof Error?e.message:"Unbekannter Fehler.";
         setChats(c=>c.map(x=>{
           if(x.id!==chatId)return x;
-          const next=[...x.messages]; next[index]={role:"assistant",content:"**Fehler:** "+msg}; return {...x,messages:next};
+          const next=[...x.messages];
+          next[index]={role:"assistant",content:"**Fehler:** "+msg};
+          return {...x,messages:next};
         }));
       }
     }finally{abort.current=null;setBusy(false);}

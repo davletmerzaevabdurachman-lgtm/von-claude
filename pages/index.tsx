@@ -1,405 +1,279 @@
 import { useEffect, useRef, useState } from "react";
 import Head from "next/head";
 
-type RunnerLanguage = "html" | "javascript" | "python" | "css" | "typescript" | "json" | "text";
-type Message = { role: "user" | "assistant"; content: string; kind?: "image"; imageUrl?: string };
-type Chat = { id: string; title: string; messages: Message[] };
+type Lang = "html" | "javascript" | "python" | "css" | "typescript" | "json";
+type Msg = { role:"user"|"assistant"; content:string; imageUrl?:string };
+type Chat = { id:string; title:string; messages:Msg[] };
 
-const FENCE = String.fromCharCode(96, 96, 96);
-const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js";
-const IDEAS = [
-  "Baue mir eine moderne Gaming-Website",
-  "Erkläre mir Quantencomputer einfach",
+const FENCE = String.fromCharCode(96,96,96);
+const PYODIDE_JS = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js";
+const ideas = [
+  "Baue eine moderne Gaming-Website mit Animationen",
   "Schreibe einen Python-Taschenrechner",
-  "Erstelle ein futuristisches TREXOR-Logo"
+  "Erstelle ein futuristisches Dashboard",
+  "Erstelle ein Bild von einem neonfarbenen Cyberpunk-Stadtbild"
 ];
 
-function makeId(){ try{return crypto.randomUUID();}catch{return String(Date.now())+"-"+Math.random();} }
-function imageRequest(value:string){
-  return /(erstell|generier|zeichn|mach|create|generate|draw).*(bild|image|foto|logo|grafik|illustration)/i.test(value);
+function uid(){ try{return crypto.randomUUID();}catch{return Date.now()+"-"+Math.random().toString(36).slice(2);} }
+function extractBlocks(text:string){
+  const blocks:{lang:string;code:string}[]=[];
+  const re=new RegExp(FENCE+"(\\\\w*)\\\\s*\\\\n?([\\\\s\\\\S]*?)(?="+FENCE+"|$)","g");
+  let match;
+  while((match=re.exec(text))) blocks.push({lang:(match[1]||"text").toLowerCase(),code:match[2].trimEnd()});
+  return blocks;
 }
-function extractHtml(messages:Message[]){
+function firstHtml(messages:Msg[]){
   for(let i=messages.length-1;i>=0;i--){
-    const m=messages[i];
-    if(m.role!=="assistant"||m.kind==="image") continue;
-    const marker=FENCE+"html";
-    const start=m.content.toLowerCase().indexOf(marker);
-    if(start<0) continue;
-    const line=m.content.indexOf("\n",start);
-    if(line<0) continue;
-    const end=m.content.indexOf(FENCE,line+1);
-    return m.content.slice(line+1,end<0?m.content.length:end);
+    if(messages[i].role!=="assistant") continue;
+    const blocks=extractBlocks(messages[i].content);
+    const html=blocks.find(x=>x.lang==="html");
+    if(html?.code) return html.code;
   }
   return "";
 }
-async function copyText(value:string){try{await navigator.clipboard.writeText(value);}catch{}}
-
-function Icon({name}:{name:string}){
-  const map:Record<string,string>={
-    spark:"M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z",
-    run:"M8 5v14l11-7L8 5Z",
-    copy:"M8 8h10v12H8zM5 15H4V4h11v1",
-    image:"M4 5h16v14H4zM7 15l3-3 2 2 2-3 3 4",
-    chat:"M4 5h16v11H8l-4 4V5Z",
-    trash:"M6 7h12m-9 0v10m6-10v10M9 4h6l1 3H8l1-3Z",
-    stop:"M7 7h10v10H7z",
-    download:"M12 4v10m0 0 4-4m-4 4-4-4M5 20h14"
-  };
-  return <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={map[name]||map.spark}/></svg>;
+async function copyText(value:string){
+  try{await navigator.clipboard.writeText(value);}catch{
+    const t=document.createElement("textarea"); t.value=value; document.body.appendChild(t); t.select(); document.execCommand("copy"); t.remove();
+  }
 }
 
-function CodeBlock({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
+function Icon({name}:{name:string}){
+  const d:Record<string,string>={
+    spark:"M12 2l1.7 6.3L20 10l-6.3 1.7L12 18l-1.7-6.3L4 10l6.3-1.7L12 2Z",
+    play:"M8 5v14l11-7L8 5Z",
+    copy:"M8 8h10v12H8zM5 15H4V4h11v1",
+    image:"M4 5h16v14H4zM7 15l3-3 2 2 2-3 3 4",
+    code:"M9 7 5 12l4 5M15 7l4 5-4 5",
+    chat:"M4 5h16v11H8l-4 4V5Z",
+    trash:"M6 7h12M9 7v10M15 7v10M9 4h6l1 3H8l1-3Z",
+    download:"M12 4v11m0 0 4-4m-4 4-4-4M5 20h14",
+    stop:"M7 7h10v10H7z"
+  };
+  return <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d[name]||d.spark}/></svg>;
+}
+
+function CodeCard({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
   const [copied,setCopied]=useState(false);
-  async function copy(){await copyText(code);setCopied(true);window.setTimeout(()=>setCopied(false),1000);}
+  async function copy(){await copyText(code);setCopied(true);setTimeout(()=>setCopied(false),900);}
   return <div className="code-card">
     <div className="code-head">
       <span>{lang||"code"}</span>
       <div className="code-actions">
         <button onClick={copy}><Icon name="copy"/>{copied?"Kopiert":"Kopieren"}</button>
-        <button onClick={onRun}><Icon name="run"/>Run</button>
+        <button onClick={onRun}><Icon name="play"/>Run</button>
       </div>
     </div>
     <pre>{code}</pre>
   </div>;
 }
 
-function MessageView({message,onRun}:{message:Message;onRun:(l:RunnerLanguage,c:string)=>void}){
-  if(message.kind==="image"&&message.imageUrl){
-    return <div className="image-result">
-      <img src={message.imageUrl} alt="TREXOR Bild"/>
-      <a className="image-link" href={message.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a>
-    </div>;
-  }
-
-  return <>{message.content.split(FENCE).map((part,i)=>{
-    if(i%2===1){
-      const lines=part.split("\n");
+function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
+  const matches=text.match(new RegExp(FENCE+"[\\\\s\\\\S]*?(?:"+FENCE+"|$)","g"))||[];
+  const pieces=text.split(new RegExp(FENCE+"[\\\\s\\\\S]*?(?:"+FENCE+"|$)","g"));
+  return <>{pieces.map((piece,i)=>{
+    const out=[];
+    const normal=piece.trim();
+    if(normal) out.push(<p key={"p"+i}>{normal}</p>);
+    const block=matches[i];
+    if(block){
+      const lines=block.slice(3).split("\\n");
       const lang=(lines.shift()||"text").trim().toLowerCase();
-      const code=lines.join("\n").trimEnd();
-      return <CodeBlock key={i} lang={lang} code={code} onRun={()=>onRun(lang as RunnerLanguage,code)}/>;
+      const code=lines.join("\\n").replace(new RegExp(FENCE+"$"),"").trimEnd();
+      out.push(<CodeCard key={"c"+i} lang={lang} code={code} onRun={()=>onRun(lang as Lang,code)}/>);
     }
-    const text=part.trim();
-    return text?text.split(/\n{2,}/).map((p,j)=><p key={i+"-"+j}>{p}</p>):null;
+    return out;
   })}</>;
 }
 
 export default function Home(){
-  const [screen,setScreen]=useState<"chat"|"run">("chat");
   const [chats,setChats]=useState<Chat[]>([]);
-  const [activeId,setActiveId]=useState<string|null>(null);
+  const [active,setActive]=useState<string|null>(null);
   const [input,setInput]=useState("");
   const [busy,setBusy]=useState(false);
   const [think,setThink]=useState(true);
   const [mode,setMode]=useState<"chat"|"image">("chat");
-  const [runnerLanguage,setRunnerLanguage]=useState<RunnerLanguage>("html");
-  const [runnerCode,setRunnerCode]=useState("<!doctype html>\n<html>\n<body>\n<h1>TREXOR</h1>\n</body>\n</html>");
-  const [runnerHtml,setRunnerHtml]=useState("");
-  const [runnerOutput,setRunnerOutput]=useState("");
-  const [runnerBusy,setRunnerBusy]=useState(false);
-  const [buildSecret,setBuildSecret]=useState("");
-  const [buildStatus,setBuildStatus]=useState("");
+  const [screen,setScreen]=useState<"chat"|"run">("chat");
+  const [lang,setLang]=useState<Lang>("html");
+  const [code,setCode]=useState("<!doctype html>\\n<html><body><h1>TREXOR</h1></body></html>");
+  const [preview,setPreview]=useState("");
+  const [output,setOutput]=useState("");
+  const [running,setRunning]=useState(false);
+  const [secret,setSecret]=useState("");
+  const [buildMsg,setBuildMsg]=useState("");
+  const [menu,setMenu]=useState(false);
   const [mobile,setMobile]=useState(false);
   const [reload,setReload]=useState(0);
-  const [menu,setMenu]=useState(false);
-  const abortRef=useRef<AbortController|null>(null);
-  const endRef=useRef<HTMLDivElement>(null);
-  const hydrated=useRef(false);
-  const pyodide=useRef<any>(null);
+  const end=useRef<HTMLDivElement>(null);
+  const abort=useRef<AbortController|null>(null);
+  const py=useRef<any>(null);
+  const loaded=useRef(false);
 
   useEffect(()=>{
     try{
-      const raw=localStorage.getItem("trexor.chats.v7");
+      const raw=localStorage.getItem("trexor.clean.v1");
       const value=raw?JSON.parse(raw):[];
-      if(Array.isArray(value)){setChats(value);setActiveId(value[0]?.id||null);}
-    }catch{localStorage.removeItem("trexor.chats.v7");}
-    hydrated.current=true;
+      if(Array.isArray(value)){setChats(value);setActive(value[0]?.id||null);}
+    }catch{localStorage.removeItem("trexor.clean.v1");}
+    loaded.current=true;
   },[]);
   useEffect(()=>{
-    if(!hydrated.current||busy)return;
-    try{localStorage.setItem("trexor.chats.v7",JSON.stringify(chats.slice(0,40)));}catch{}
+    if(!loaded.current||busy)return;
+    try{localStorage.setItem("trexor.clean.v1",JSON.stringify(chats.slice(0,30)));}catch{}
   },[chats,busy]);
-  useEffect(()=>{const v=sessionStorage.getItem("trexor.builder.secret");if(v)setBuildSecret(v);},[]);
-  useEffect(()=>{if(buildSecret)sessionStorage.setItem("trexor.builder.secret",buildSecret);},[buildSecret]);
+  useEffect(()=>{const s=sessionStorage.getItem("trexor.build.secret");if(s)setSecret(s);},[]);
+  useEffect(()=>{if(secret)sessionStorage.setItem("trexor.build.secret",secret);},[secret]);
 
-  const chat=chats.find(x=>x.id===activeId);
-  const messages=chat?.messages||[];
-  const html=extractHtml(messages);
+  const current=chats.find(x=>x.id===active);
+  const messages=current?.messages||[];
+  const html=firstHtml(messages);
+  useEffect(()=>{end.current?.scrollIntoView({block:"end"});},[messages.length,messages[messages.length-1]?.content]);
 
-  useEffect(()=>{endRef.current?.scrollIntoView({block:"end"});},[messages.length,messages[messages.length-1]?.content.length]);
-
-  async function runChat(chatId:string,history:Message[]){
+  async function askImage(chatId:string,history:Msg[]){
     setBusy(true);
-    const answerIndex=history.length;
-    setChats(cur=>cur.map(c=>c.id===chatId?{...c,messages:[...c.messages,{role:"assistant",content:""}]}:c));
-    const controller=new AbortController();
-    abortRef.current=controller;
-
     try{
-      const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},signal:controller.signal,body:JSON.stringify({messages:history,think})});
-      if(!r.ok||!r.body){
-        let message="KI-Anfrage fehlgeschlagen.";
-        try{message=(await r.json()).error||message;}catch{}
-        throw new Error(message);
-      }
-
-      const reader=r.body.getReader();
-      const decoder=new TextDecoder();
-      let buffer="";
-      while(true){
-        const result=await reader.read();
-        if(result.done)break;
-        buffer+=decoder.decode(result.value,{stream:true});
-        const lines=buffer.split("\n");
-        buffer=lines.pop()||"";
-
-        for(const line of lines){
-          if(!line.startsWith("data: "))continue;
-          const payload=line.slice(6).trim();
-          if(!payload||payload==="[DONE]")continue;
-          try{
-            const delta=JSON.parse(payload)?.choices?.[0]?.delta?.content;
-            if(typeof delta!=="string"||!delta)continue;
-            setChats(cur=>cur.map(c=>{
-              if(c.id!==chatId)return c;
-              const next=[...c.messages];
-              next[answerIndex]={role:"assistant",content:(next[answerIndex]?.content||"")+delta};
-              return {...c,messages:next};
-            }));
-            await new Promise(resolve=>window.setTimeout(resolve,18));
-          }catch{}
-        }
-      }
-    }catch(error){
-      if(!(error instanceof Error&&error.name==="AbortError")){
-        const message=error instanceof Error?error.message:"Unbekannter Fehler";
-        setChats(cur=>cur.map(c=>{
-          if(c.id!==chatId)return c;
-          const next=[...c.messages];
-          next[answerIndex]={role:"assistant",content:"**Fehler:** "+message};
-          return {...c,messages:next};
-        }));
-      }
-    }finally{abortRef.current=null;setBusy(false);}
-  }
-
-  async function generateImage(chatId:string,history:Message[]){
-    setBusy(true);
-    setChats(cur=>cur.map(c=>c.id===chatId?{...c,messages:[...c.messages,{role:"assistant",content:"Bild wird erstellt …"}]}:c));
-    try{
-      const prompt=history[history.length-1]?.content||"";
-      const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
-      if(!r.ok)throw new Error((await r.json()).error||"Bildgenerierung fehlgeschlagen.");
+      const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:history[history.length-1]?.content||""})});
+      if(!r.ok){const d=await r.json().catch(()=>null);throw new Error(d?.error||"Bildgenerierung fehlgeschlagen.");}
       const url=URL.createObjectURL(await r.blob());
-      setChats(cur=>cur.map(c=>{
-        if(c.id!==chatId)return c;
-        const next=[...c.messages];
-        next[next.length-1]={role:"assistant",content:"Bild erstellt.",kind:"image",imageUrl:url};
-        return {...c,messages:next};
-      }));
-    }catch(error){
-      const message=error instanceof Error?error.message:"Bildgenerierung fehlgeschlagen.";
-      setChats(cur=>cur.map(c=>{
-        if(c.id!==chatId)return c;
-        const next=[...c.messages];
-        next[next.length-1]={role:"assistant",content:"**Fehler:** "+message};
-        return {...c,messages:next};
-      }));
+      setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"",imageUrl:url}]}:x));
+    }catch(e){
+      const msg=e instanceof Error?e.message:"Bildgenerierung fehlgeschlagen.";
+      setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"**Fehler:** "+msg}]}:x));
     }finally{setBusy(false);}
   }
 
+  async function askAi(chatId:string,history:Msg[]){
+    setBusy(true);
+    const index=history.length;
+    setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:""}]}:x));
+    const controller=new AbortController(); abort.current=controller;
+    try{
+      const r=await fetch("/api/chat",{method:"POST",signal:controller.signal,headers:{"Content-Type":"application/json"},body:JSON.stringify({messages:history,think})});
+      if(!r.ok||!r.body){const d=await r.json().catch(()=>null);throw new Error(d?.error||"KI-Anfrage fehlgeschlagen.");}
+      const reader=r.body.getReader(),decoder=new TextDecoder(); let buffer="";
+      while(true){
+        const item=await reader.read(); if(item.done)break;
+        buffer+=decoder.decode(item.value,{stream:true});
+        const lines=buffer.split("\\n"); buffer=lines.pop()||"";
+        for(const line of lines){
+          if(!line.startsWith("data: "))continue;
+          const payload=line.slice(6).trim(); if(!payload||payload==="[DONE]")continue;
+          try{
+            const delta=JSON.parse(payload)?.choices?.[0]?.delta?.content;
+            if(typeof delta!=="string"||!delta)continue;
+            setChats(c=>c.map(x=>{
+              if(x.id!==chatId)return x;
+              const next=[...x.messages];
+              next[index]={role:"assistant",content:(next[index]?.content||"")+delta};
+              return {...x,messages:next};
+            }));
+            await new Promise(r=>setTimeout(r,24));
+          }catch{}
+        }
+      }
+    }catch(e){
+      if(!(e instanceof Error&&e.name==="AbortError")){
+        const msg=e instanceof Error?e.message:"Unbekannter Fehler.";
+        setChats(c=>c.map(x=>{
+          if(x.id!==chatId)return x;
+          const next=[...x.messages]; next[index]={role:"assistant",content:"**Fehler:** "+msg}; return {...x,messages:next};
+        }));
+      }
+    }finally{abort.current=null;setBusy(false);}
+  }
+
   function send(value?:string){
-    const text=(value??input).trim();
-    if(!text||busy)return;
-    const id=activeId||makeId();
-    const history=[...(chat?.messages||[]),{role:"user" as const,content:text}];
-    const wants=mode==="image"||imageRequest(text);
-
-    setChats(cur=>{
-      if(cur.some(c=>c.id===id))return cur.map(c=>c.id===id?{...c,messages:history}:c);
-      return [{id,title:text.slice(0,42),messages:history},...cur];
-    });
-    setActiveId(id);
-    setInput("");
-    setScreen("chat");
-    if(wants)generateImage(id,history);else runChat(id,history);
+    const text=(value??input).trim(); if(!text||busy)return;
+    const id=active||uid();
+    const history=[...(current?.messages||[]),{role:"user" as const,content:text}];
+    setChats(c=>c.some(x=>x.id===id)?c.map(x=>x.id===id?{...x,messages:history}:x):[{id,title:text.slice(0,44),messages:history},...c]);
+    setActive(id);setInput("");setScreen("chat");
+    if(mode==="image")askImage(id,history);else askAi(id,history);
   }
 
-  function openRun(lang:RunnerLanguage,code:string){
-    setRunnerLanguage(lang==="js"?"javascript":lang==="ts"?"typescript":lang);
-    setRunnerCode(code);
-    setRunnerOutput("");
-    setRunnerHtml("");
-    setScreen("run");
+  function openRun(l:Lang,c:string){
+    setLang(l);setCode(c);setPreview("");setOutput("");setScreen("run");
   }
 
-  async function ensurePython(){
-    if(pyodide.current)return pyodide.current;
+  async function ensurePy(){
+    if(py.current)return py.current;
     if(typeof (window as any).loadPyodide!=="function"){
       await new Promise<void>((resolve,reject)=>{
-        const script=document.createElement("script");
-        script.src=PYODIDE_URL;
-        script.onload=()=>resolve();
-        script.onerror=()=>reject(new Error("Python-Engine konnte nicht geladen werden."));
-        document.head.appendChild(script);
+        const s=document.createElement("script");s.src=PYODIDE_JS;s.onload=()=>resolve();s.onerror=()=>reject(new Error("Python-Engine konnte nicht geladen werden."));document.head.appendChild(s);
       });
     }
-    pyodide.current=await (window as any).loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v314.0.7/full/"});
-    return pyodide.current;
+    py.current=await (window as any).loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v314.0.7/full/"});
+    return py.current;
   }
 
-  async function runCode(){
-    setRunnerBusy(true);
-    setRunnerOutput("");
+  async function run(){
+    setRunning(true);setOutput("");
     try{
-      if(runnerLanguage==="html"){
-        setRunnerHtml(runnerCode);
-        setRunnerOutput("HTML ausgeführt.");
-      }else if(runnerLanguage==="css"){
-        setRunnerHtml("<!doctype html><html><body><div class='demo'>TREXOR CSS Preview</div><style>"+runnerCode+"</style></body></html>");
-        setRunnerOutput("CSS ausgeführt.");
-      }else if(runnerLanguage==="javascript"){
-        const safe=runnerCode.replace(/<\/script/gi,"<\\/script");
-        setRunnerHtml("<!doctype html><html><body><pre id='out'></pre><script>"+
-          "const o=document.getElementById('out');const w=(...a)=>o.textContent+=a.map(v=>typeof v==='object'?JSON.stringify(v,null,2):String(v)).join(' ')+'\\n';"+
-          "console.log=w;console.warn=w;console.error=w;try{"+safe+"}catch(e){w('ERROR:',e.message)}<\\/script></body></html>");
-        setRunnerOutput("JavaScript ausgeführt.");
-      }else if(runnerLanguage==="python"){
-        const p=await ensurePython();
-        const out:string[]=[];
-        p.setStdout({batched:(v:string)=>out.push(v)});
-        p.setStderr({batched:(v:string)=>out.push(v)});
-        const result=p.runPython(runnerCode);
-        if(result!==undefined&&result!==null)out.push(String(result));
-        setRunnerOutput(out.join("\n")||"Python ausgeführt.");
-      }else if(runnerLanguage==="json"){
-        setRunnerOutput(JSON.stringify(JSON.parse(runnerCode),null,2));
-      }else{
-        setRunnerOutput("Diese Sprache kann nicht sicher direkt im Browser ausgeführt werden. Nutze Build.");
-      }
-    }catch(error){
-      setRunnerOutput(error instanceof Error?error.message:"Run fehlgeschlagen.");
-    }finally{setRunnerBusy(false);}
+      if(lang==="html"){setPreview(code);setOutput("HTML ausgeführt.");}
+      else if(lang==="css"){setPreview("<html><body><div class='box'>TREXOR CSS Preview</div><style>"+code+"</style></body></html>");setOutput("CSS ausgeführt.");}
+      else if(lang==="javascript"){
+        const safe=code.replace(/<\\/script/gi,"<\\\\/script");
+        setPreview("<html><body><pre id='o'></pre><script>const o=document.getElementById('o');const w=(...a)=>o.textContent+=a.join(' ')+'\\\\n';console.log=w;try{"+safe+"}catch(e){w('ERROR',e.message)}<\\\\/script></body></html>");
+        setOutput("JavaScript ausgeführt.");
+      }else if(lang==="python"){
+        const p=await ensurePy(),out:string[]=[];
+        p.setStdout({batched:(v:string)=>out.push(v)});p.setStderr({batched:(v:string)=>out.push(v)});
+        const result=p.runPython(code); if(result!==undefined&&result!==null)out.push(String(result));
+        setOutput(out.join("\\n")||"Python ausgeführt.");
+      }else if(lang==="json"){setOutput(JSON.stringify(JSON.parse(code),null,2));}
+      else setOutput("Diese Sprache wird im Browser nicht direkt ausgeführt. Nutze Build.");
+    }catch(e){setOutput(e instanceof Error?e.message:"Run fehlgeschlagen.");}
+    finally{setRunning(false);}
   }
 
   async function build(target:"exe"|"deb"|"apk"){
-    setBuildStatus("Build wird gestartet …");
+    setBuildMsg("Build wird gestartet …");
     try{
-      const r=await fetch("/api/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        secret:buildSecret,code:runnerCode,language:runnerLanguage,target
-      })});
-      const data=await r.json();
-      if(!r.ok)throw new Error(data?.error||"Build fehlgeschlagen.");
-      setBuildStatus("Build gestartet. GitHub Actions öffnet gleich.");
-      window.open(data.workflowUrl,"_blank","noopener,noreferrer");
-    }catch(error){
-      setBuildStatus(error instanceof Error?error.message:"Build fehlgeschlagen.");
-    }
+      const r=await fetch("/api/build",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({secret,code,language:lang,target})});
+      const d=await r.json();
+      if(!r.ok)throw new Error(d?.error||"Build fehlgeschlagen.");
+      setBuildMsg("Build gestartet. GitHub Actions wird geöffnet.");
+      window.open(d.workflowUrl,"_blank","noopener,noreferrer");
+    }catch(e){setBuildMsg(e instanceof Error?e.message:"Build fehlgeschlagen.");}
   }
 
-  function newChat(){abortRef.current?.abort();setBusy(false);setActiveId(null);setInput("");setScreen("chat");setMenu(false);}
-  function deleteChat(id:string){setChats(cur=>cur.filter(c=>c.id!==id));if(id===activeId)setActiveId(null);}
-  function download(){
-    const blob=new Blob([runnerCode],{type:"text/plain;charset=utf-8"});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement("a");a.href=url;a.download=runnerLanguage==="python"?"main.py":runnerLanguage==="javascript"?"main.js":"index.html";a.click();
-    setTimeout(()=>URL.revokeObjectURL(url),500);
-  }
+  function newChat(){abort.current?.abort();setBusy(false);setActive(null);setInput("");setScreen("chat");setMenu(false);}
 
-  return <>
-    <Head><title>TREXOR — AI Code Studio</title><meta name="theme-color" content="#030303"/></Head>
-    <div className="shell">
+  return <><Head><title>TREXOR — AI Studio</title><meta name="theme-color" content="#050507"/></Head>
+    <div className="app">
       <aside className={"sidebar "+(menu?"open":"")}>
-        <div className="brand"><div className="brand-mark">T</div><div><div className="brand-name">TREXOR</div><div className="brand-sub">AI CODE STUDIO</div></div></div>
-        <button className="new-chat" onClick={newChat}><span>+</span>Neuer Chat</button>
-
-        <div className="section-label">Workspace</div>
+        <div className="brand"><div className="brand-logo">T</div><div><b>TREXOR</b><small>AI STUDIO</small></div></div>
+        <button className="new" onClick={newChat}><span>+</span> Neuer Chat</button>
+        <div className="label">Workspace</div>
         <button className={"nav "+(screen==="chat"?"active":"")} onClick={()=>setScreen("chat")}><Icon name="chat"/>Chat</button>
-        <button className={"nav "+(screen==="run"?"active":"")} onClick={()=>setScreen("run")}><Icon name="run"/>Run Studio</button>
-
-        <div className="section-label">Chats</div>
-        <nav className="history">{chats.map(c=><div className={"history-item "+(c.id===activeId?"active":"")} key={c.id}>
-          <button className="history-title" onClick={()=>{setActiveId(c.id);setScreen("chat");setMenu(false);}}>{c.title}</button>
-          <button className="delete" onClick={()=>deleteChat(c.id)} aria-label="Chat löschen"><Icon name="trash"/></button>
-        </div>)}</nav>
-        <div className="foot"><span/>Vercel online architecture</div>
+        <button className={"nav "+(screen==="run"?"active":"")} onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button>
+        <div className="label">Verlauf</div>
+        <nav className="history">{chats.map(x=><div key={x.id} className={"history-item "+(x.id===active?"active":"")}><button onClick={()=>{setActive(x.id);setScreen("chat");setMenu(false);}}>{x.title}</button><button className="del" onClick={()=>{setChats(c=>c.filter(y=>y.id!==x.id));if(x.id===active)setActive(null);}}><Icon name="trash"/></button></div>)}</nav>
+        <div className="online"><i/>Vercel / serverless</div>
       </aside>
 
       <main className="main">
-        <header className="topbar">
-          <button className="mobile-menu" onClick={()=>setMenu(v=>!v)}>☰</button>
-          <div><div className="kicker">{screen==="chat"?"CHAT":"RUN STUDIO"}</div><div className="current">{screen==="chat"?chat?.title||"Neuer Chat":"Code ausführen & bauen"}</div></div>
-          <button className="top-switch" onClick={()=>setScreen(screen==="chat"?"run":"chat")}><Icon name={screen==="chat"?"run":"chat"}/>{screen==="chat"?"Run":"Chat"}</button>
-        </header>
+        <header className="top"><button className="menu" onClick={()=>setMenu(v=>!v)}>☰</button><div><small>{screen==="chat"?"TREXOR CHAT":"TREXOR RUN STUDIO"}</small><span>{screen==="chat"?current?.title||"Neuer Chat":"Code ausführen & bauen"}</span></div><button className="toprun" onClick={()=>setScreen(screen==="chat"?"run":"chat")}><Icon name={screen==="chat"?"play":"chat"}/>{screen==="chat"?"Run":"Chat"}</button></header>
 
-        {screen==="chat"?<section className="chat-view">
+        {screen==="chat"?<section className="chat">
           <div className="messages">
-            {!messages.length?<div className="welcome">
-              <div className="orb"><div>T</div><i/><i/><i/></div>
-              <div className="eyebrow">TREXOR AI</div>
-              <h1>Was bauen wir heute?</h1>
-              <p>Code, Websites, Bilder und Ideen in einem Workspace.</p>
-              <div className="ideas">{IDEAS.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div>
-            </div>:messages.map((m,i)=><div className={"message "+m.role} key={i}>
-              {m.role==="user"?<div className="user-bubble">{m.content}</div>:<div className="assistant">
-                {!m.content&&busy?<div className="thinking"><i/><i/><i/>TREXOR schreibt …</div>:null}
-                <MessageView message={m} onRun={openRun}/>
-                {m.content&&i===messages.length-1&&!busy?<div className="tools-row"><button onClick={()=>copyText(m.content)}><Icon name="copy"/>Kopieren</button>{m.kind!=="image"?<button onClick={()=>runChat(activeId||"",messages.slice(0,-1))}><Icon name="run"/>Neu generieren</button>:null}</div>:null}
-              </div>}
-            </div>)}
-            <div ref={endRef}/>
+            {!messages.length?<div className="hero"><div className="hero-mark">T</div><em>TREXOR AI</em><h1>Build something intelligent.</h1><p>Chat, Coding, Bilder und Live-Preview in einem Workspace.</p><div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div></div>:messages.map((m,i)=><div key={i} className={"row "+m.role}><div className={m.role==="user"?"bubble":"answer"}>
+              {m.imageUrl?<><img className="generated" src={m.imageUrl} alt="Generiertes Bild"/><a className="image-open" href={m.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a></>:m.content?<AssistantText text={m.content} onRun={openRun}/>:busy?<div className="typing"><i/><i/><i/>TREXOR schreibt …</div>:null}
+              {m.role==="assistant"&&m.content&&!busy&&i===messages.length-1?<div className="message-actions"><button onClick={()=>copyText(m.content)}><Icon name="copy"/>Kopieren</button></div>:null}
+            </div></div>)}
+            <div ref={end}/>
           </div>
-
           <div className="composer-wrap">
-            <div className="mode-row">
-              <button className={mode==="chat"?"selected":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button>
-              <button className={mode==="image"?"selected":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button>
-              <button onClick={()=>setScreen("run")}><Icon name="run"/>Run Studio</button>
-            </div>
-            <div className="composer">
-              <textarea value={input} rows={1} placeholder={mode==="image"?"Beschreibe dein Bild …":"Frag TREXOR etwas oder gib einen Coding-Auftrag …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>
-              <button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button>
-              {busy?<button className="send stop" onClick={()=>abortRef.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()} onClick={()=>send()}><Icon name="spark"/></button>}
-            </div>
+            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v}>{think?"Think ON":"Think OFF"}</button></div>
+            <div className="composer"><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder Code-Idee …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
-        </section>:<section className="run-view">
-          <div className="run-title">
-            <div><div className="eyebrow">RUN STUDIO</div><h2>Code → Run → Build</h2><p>HTML, CSS, JavaScript und Python laufen direkt im Browser. App-Builds werden als GitHub-Action gestartet.</p></div>
-            <button className="top-switch" onClick={download}><Icon name="download"/>Download</button>
+        </section>:<section className="run">
+          <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Native Builds laufen isoliert über GitHub Actions.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>
+          <div className="studio">
+            <section className="editor"><div className="editor-head"><div className="langs">{(["html","javascript","python","css","typescript","json"] as Lang[]).map(x=><button key={x} className={lang===x?"on":""} onClick={()=>setLang(x)}>{x}</button>)}</div><button className="primary" onClick={run} disabled={running}><Icon name="play"/>{running?"Läuft …":"Run"}</button></div><textarea spellCheck={false} value={code} onChange={e=>setCode(e.target.value)}/></section>
+            <section className="preview"><div className="preview-head"><span>OUTPUT</span><div><button onClick={()=>setMobile(v=>!v)}>{mobile?"Desktop":"Mobil"}</button><button onClick={()=>setReload(v=>v+1)}>Neu laden</button></div></div><div className="preview-body">{preview?<iframe key={reload} className={mobile?"phone":""} title="TREXOR Preview" sandbox="allow-scripts" srcDoc={preview}/>:null}{output?<pre>{output}</pre>:null}{!preview&&!output?<div className="empty"><Icon name="play"/>Run drücken</div>:null}</div></section>
           </div>
-
-          <div className="runner">
-            <section className="editor-card">
-              <div className="editor-bar">
-                <div className="langs">{(["html","javascript","python","css","typescript","json"] as RunnerLanguage[]).map(l=><button key={l} className={runnerLanguage===l?"on":""} onClick={()=>setRunnerLanguage(l)}>{l}</button>)}</div>
-                <button className="primary" disabled={runnerBusy} onClick={runCode}><Icon name="run"/>{runnerBusy?"Läuft …":"Run"}</button>
-              </div>
-              <textarea className="editor" spellCheck={false} value={runnerCode} onChange={e=>setRunnerCode(e.target.value)}/>
-            </section>
-
-            <section className="preview-card">
-              <div className="preview-bar"><span>OUTPUT</span><div><button onClick={()=>setMobile(v=>!v)}>{mobile?"Desktop":"Mobil"}</button><button onClick={()=>setReload(v=>v+1)}>Neu laden</button></div></div>
-              <div className="preview">
-                {runnerHtml?<iframe key={reload} className={mobile?"phone":""} title="TREXOR Preview" sandbox="allow-scripts" srcDoc={runnerHtml}/>:null}
-                {runnerOutput?<pre className="output">{runnerOutput}</pre>:null}
-                {!runnerHtml&&!runnerOutput?<div className="empty"><Icon name="run"/><span>Run drücken, um dein Ergebnis zu sehen.</span></div>:null}
-              </div>
-            </section>
-          </div>
-
-          <section className="build">
-            <div><div className="eyebrow">BUILD</div><h3>EXE • DEB • APK</h3><p>HTML/Web-App → EXE, DEB oder APK. Python → EXE.</p></div>
-            <div className="build-panel">
-              <input type="password" value={buildSecret} placeholder="Builder Secret" onChange={e=>setBuildSecret(e.target.value)}/>
-              <div className="build-buttons">
-                <button onClick={()=>build("exe")}>EXE</button>
-                <button disabled={runnerLanguage!=="html"} onClick={()=>build("deb")}>DEB</button>
-                <button disabled={runnerLanguage!=="html"} onClick={()=>build("apk")}>APK</button>
-              </div>
-              {buildStatus?<div className="build-status">{buildStatus}</div>:null}
-            </div>
-          </section>
+          <section className="build"><div><em>BUILD CENTER</em><h3>EXE • DEB • APK</h3><p>HTML → EXE / DEB / APK · Python → EXE</p></div><div className="build-right"><input type="password" value={secret} placeholder="Builder Secret" onChange={e=>setSecret(e.target.value)}/><div><button onClick={()=>build("exe")}>EXE</button><button disabled={lang!=="html"} onClick={()=>build("deb")}>DEB</button><button disabled={lang!=="html"} onClick={()=>build("apk")}>APK</button></div>{buildMsg?<small>{buildMsg}</small>:null}</div></section>
         </section>}
       </main>
     </div>
   </>;
-}

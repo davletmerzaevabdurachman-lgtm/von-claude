@@ -1,17 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { groqChat } from "../../lib/groq";
 
-async function generateWithImageProvider(prompt: string) {
-  const key = (process.env.TREXOR_IMAGE_API_KEY || process.env.IMAGE_API_KEY)?.trim();
-  const endpoint = (process.env.TREXOR_IMAGE_API_URL || process.env.IMAGE_API_URL)?.trim();
-  const model = (process.env.TREXOR_IMAGE_MODEL || process.env.IMAGE_MODEL)?.trim() || "flux";
-
-  if (!key || !endpoint) {
-    throw new Error("Für Bilder fehlt IMAGE_API_KEY oder IMAGE_API_URL. Groq kann aktuell Bilder verstehen, aber nicht direkt als Bilddatei generieren.");
-  }
-
-  const url = endpoint.replace(/\/$/, "") + "/" + encodeURIComponent(prompt) + "?model=" + encodeURIComponent(model);
-  const response = await fetch(url, { headers: { Authorization: "Bearer " + key } });
+async function generateImage(prompt: string) {
+  const model = (process.env.POLLINATIONS_IMAGE_MODEL || "flux").trim();
+  const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) +
+    "?model=" + encodeURIComponent(model) + "&nologo=true";
+  const key = process.env.POLLINATIONS_API_KEY?.trim();
+  const headers: Record<string,string> = {};
+  if (key) headers.Authorization = "Bearer " + key;
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
     throw new Error(detail || "Bildprovider hat die Anfrage abgelehnt.");
@@ -37,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       { role: "user", content: prompt },
     ], false);
 
-    const image = await generateWithImageProvider(enhanced.content);
+    const image = await generateImage(enhanced.content);
     res.statusCode = 200;
     res.setHeader("Content-Type", image.contentType);
     res.setHeader("Cache-Control", "no-store");

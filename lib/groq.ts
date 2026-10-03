@@ -10,6 +10,7 @@ function getKeys() {
 
 type GroqOptions = {
   webSearch?: boolean;
+  vision?: boolean;
 };
 
 export async function groqChat(
@@ -20,9 +21,11 @@ export async function groqChat(
   const keys = getKeys();
   if (!keys.length) throw new Error("TREXOR ist noch nicht mit einem Groq API-Key verbunden.");
 
-  const model = think
-    ? process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b"
-    : process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
+  const model = options.vision
+    ? process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b"
+    : think
+      ? process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b"
+      : process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
 
   const body: Record<string, unknown> = {
     model,
@@ -32,7 +35,8 @@ export async function groqChat(
   };
 
   if (options.webSearch && (model === "openai/gpt-oss-20b" || model === "openai/gpt-oss-120b")) {
-    body.tools = [{ type: "browser_search" }];\n    body.tool_choice = "required";
+    body.tools = [{ type: "browser_search" }];
+    body.tool_choice = "required";
   }
 
   let lastStatus = 502;

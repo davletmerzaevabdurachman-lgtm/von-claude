@@ -1,0 +1,189 @@
+name: TREXOR Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      language:
+        description: Source language
+        required: true
+        type: string
+      target:
+        description: Build target
+        required: true
+        type: choice
+        options:
+          - exe
+          - deb
+          - apk
+      code_b64:
+        description: Base64 encoded source
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  web-exe:
+    if: ${{ inputs.target == 'exe' && inputs.language == 'html' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Decode website
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes(
+            'index.html',
+            [Convert]::FromBase64String('${{ inputs.code_b64 }}')
+          )
+      - name: Create Electron app
+        shell: pwsh
+        run: |
+          @'
+          const { app, BrowserWindow } = require('electron');
+          function createWindow() {
+            const win = new BrowserWindow({
+              width: 1280,
+              height: 800,
+              webPreferences: { contextIsolation: true, nodeIntegration: false }
+            });
+            win.loadFile('index.html');
+          }
+          app.whenReady().then(createWindow);
+          app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+          '@ | Set-Content main.cjs
+          @'
+          {
+            "name":"trexor-generated-app",
+            "version":"1.0.0",
+            "main":"main.cjs",
+            "scripts":{"build":"electron-builder --win nsis"},
+            "devDependencies":{"electron":"^38.0.0","electron-builder":"^26.0.0"},
+            "build":{
+              "appId":"com.trexor.generated",
+              "productName":"TREXOR",
+              "files":["index.html","main.cjs"],
+              "win":{"target":["nsis"]}
+            }
+          }
+          '@ | Set-Content package.json
+      - name: Build EXE
+        run: npm install; npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trexor-exe
+          path: dist/*.exe
+          if-no-files-found: error
+
+  web-deb:
+    if: ${{ inputs.target == 'deb' && inputs.language == 'html' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Decode website
+        run: echo '${{ inputs.code_b64 }}' | base64 --decode > index.html
+      - name: Create Electron app
+        run: |
+          cat > main.cjs <<'EOF'
+          const { app, BrowserWindow } = require('electron');
+          function createWindow() {
+            const win = new BrowserWindow({
+              width: 1280, height: 800,
+              webPreferences: { contextIsolation: true, nodeIntegration: false }
+            });
+            win.loadFile('index.html');
+          }
+          app.whenReady().then(createWindow);
+          app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+          EOF
+          cat > package.json <<'EOF'
+          {
+            "name":"trexor-generated-app",
+            "version":"1.0.0",
+            "main":"main.cjs",
+            "scripts":{"build":"electron-builder --linux deb"},
+            "devDependencies":{"electron":"^38.0.0","electron-builder":"^26.0.0"},
+            "build":{
+              "appId":"com.trexor.generated",
+              "productName":"TREXOR",
+              "files":["index.html","main.cjs"],
+              "linux":{"target":["deb"]}
+            }
+          }
+          EOF
+      - name: Build DEB
+        run: npm install && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trexor-deb
+          path: dist/*.deb
+          if-no-files-found: error
+
+  web-apk:
+    if: ${{ inputs.target == 'apk' && inputs.language == 'html' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - name: Create Capacitor app
+        run: |
+          mkdir web
+          echo '${{ inputs.code_b64 }}' | base64 --decode > web/index.html
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init TREXOR com.trexor.generated --web-dir web
+          npx cap add android
+          npx cap sync android
+      - name: Build APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trexor-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  python-exe:
+    if: ${{ inputs.target == 'exe' && inputs.language == 'python' }}
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.13'
+      - name: Decode Python
+        shell: pwsh
+        run: |
+          [IO.File]::WriteAllBytes(
+            'main.py',
+            [Convert]::FromBase64String('${{ inputs.code_b64 }}')
+          )
+      - name: Install PyInstaller
+        run: python -m pip install --upgrade pip pyinstaller
+      - name: Build EXE
+        run: pyinstaller --onefile --name TREXOR_APP main.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: trexor-python-exe
+          path: dist/TREXOR_APP.exe
+          if-no-files-found: error
+
+  unsupported:
+    if: ${{ !((inputs.target == 'exe' && (inputs.language == 'html' || inputs.language == 'python')) || (inputs.target == 'deb' && inputs.language == 'html') || (inputs.target == 'apk' && inputs.language == 'html')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo 'Diese Kombination wird vom TREXOR Builder noch nicht unterstützt.'
+          exit 1

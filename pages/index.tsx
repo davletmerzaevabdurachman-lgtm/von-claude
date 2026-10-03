@@ -278,4 +278,4 @@ export default function Home(){
       </main>
     </div>
   </>;
-\n}\n
+}

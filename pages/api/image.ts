@@ -1,22 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { groqChat } from "../../lib/groq";
 
-async function generateImage(prompt: string) {
-  const model = (process.env.POLLINATIONS_IMAGE_MODEL || "flux").trim();
-  const url = "https://image.pollinations.ai/prompt/" + encodeURIComponent(prompt) +
-    "?model=" + encodeURIComponent(model) + "&nologo=true";
-  const key = process.env.POLLINATIONS_API_KEY?.trim();
-  const headers: Record<string,string> = {};
-  if (key) headers.Authorization = "Bearer " + key;
-  const response = await fetch(url, { headers });
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new Error(detail || "Bildprovider hat die Anfrage abgelehnt.");
-  }
-  return {
-    buffer: Buffer.from(await response.arrayBuffer()),
-    contentType: response.headers.get("content-type") || "image/jpeg",
-  };
+function cleanSvg(value: string) {
+  let svg = value.trim();
+  const fenced = svg.match(/\x60\x60\x60(?:svg|xml)?\s*([\s\S]*?)\x60\x60\x60/i);
+  if (fenced) svg = fenced[1].trim();
+  const start = svg.indexOf("<svg");
+  const end = svg.lastIndexOf("</svg>");
+  if (start < 0 || end < 0) throw new Error("Groq hat kein gültiges SVG-Bild erzeugt.");
+  svg = svg.slice(start, end + 6);
+  svg = svg.replace(/<script[\s\S]*?<\/script>/gi, "");
+  svg = svg.replace(/\son[a-z]+\s*=\s*(["']).*?\1/gi, "");
+  svg = svg.replace(/(?:href|xlink:href)\s*=\s*(["'])\s*(?:https?:|javascript:|data:).*?\1/gi, "");
+  return svg;
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -29,19 +25,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!prompt) return res.status(400).json({ error: "Bild-Prompt fehlt." });
 
   try {
-    const enhanced = await groqChat([
-      { role: "system", content: "Rewrite the user's image idea into one detailed visual prompt. Return only the prompt, no markdown." },
-      { role: "user", content: prompt },
-    ], false);
+    const result = await groqChat([
+      {
+        role: "system",
+        content:
+          "You are TREXOR's image generator. Create the requested image as a self-contained SVG. " +
+          "Return ONLY valid SVG markup, no markdown, no explanation. Use a 1024x1024 viewBox, " +
+          "strong visual composition, gradients, shapes, paths and text only when useful. " +
+          "Do not use scripts, external images, external fonts, links, animations or foreignObject."
+      },
+      { role: "user", content: prompt }
+    ], true);
 
-    const image = await generateImage(enhanced.content);
-    res.statusCode = 200;
-    res.setHeader("Content-Type", image.contentType);
+    const svg = cleanSvg(result.content);
+    res.status(200).setHeader("Content-Type", "image/svg+xml; charset=utf-8");
     res.setHeader("Cache-Control", "no-store");
-    return res.end(image.buffer);
+    return res.end(svg);
   } catch (error) {
     return res.status(502).json({
-      error: error instanceof Error ? error.message : "Bildgenerierung fehlgeschlagen.",
+      error: error instanceof Error ? error.message : "Bildgenerierung fehlgeschlagen."
     });
   }
 }

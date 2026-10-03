@@ -11,7 +11,10 @@ function getKeys(){
 
 export async function groqChat(messages:unknown[],think=false,signal?:AbortSignal){
   const keys=getKeys();
-  if(!keys.length) throw new Error("Keine GROQ_API_KEY_* Variable in Vercel gesetzt.");
+
+  if(!keys.length){
+    throw new Error("Keine GROQ_API_KEY_* Variable in Vercel gesetzt.");
+  }
 
   const model=think
     ? process.env.GROQ_MODEL_THINK||"openai/gpt-oss-120b"
@@ -28,6 +31,7 @@ export async function groqChat(messages:unknown[],think=false,signal?:AbortSigna
 
   for(let attempt=0;attempt<keys.length;attempt++){
     const index=(cursor+attempt)%keys.length;
+
     try{
       const response=await fetch("https://api.groq.com/openai/v1/chat/completions",{
         method:"POST",
@@ -39,9 +43,17 @@ export async function groqChat(messages:unknown[],think=false,signal?:AbortSigna
         signal
       });
 
-      if(response.ok){cursor=index;return response;}
+      if(response.ok){
+        cursor=index;
+        return response;
+      }
+
       last=response;
-      if(response.status!==429&&response.status<500)break;
+
+      // Rotation for exhausted/rate-limited or invalid keys.
+      if(![401,403,408,429].includes(response.status)&&response.status<500){
+        break;
+      }
     }catch(error){
       if(error instanceof Error&&error.name==="AbortError")throw error;
     }

@@ -5,13 +5,16 @@ const SYSTEM = [
   "Du bist TREXOR, ein leistungsfähiger AI-Assistent für Coding, Recherche, Schreiben und kreative Aufgaben.",
   "Antworte in der Sprache des Nutzers.",
   "Sei konkret und hilfreich. Wenn der Nutzer Code verlangt, liefere funktionierenden, vollständigen Code.",
-  "Wenn du eine Website oder Web-App erstellst, gib eine vollständige eigenständige HTML-Datei in genau EINEM Markdown-Codeblock zurück.",\n  "Websites sollen modern, sauber und hochwertig wirken: klare Typografie, großzügige Abstände, starke visuelle Hierarchie, responsive Layouts, echte Navigation, gute Hover- und Fokuszustände und keine unnötigen Elemente.",\n  "Vermeide generische KI-Webseiten: keine überladenen Kartenraster, keine zufälligen Verläufe, keine riesigen Überschriften ohne Zweck und keine Platzhalter, wenn du sinnvolle Inhalte erzeugen kannst.",\n  "Baue mobile Responsiveness mit ein und achte auf gute Kontraste, semantisches HTML und zugängliche Buttons/Links.",
+  "Wenn du eine Website oder Web-App erstellst, gib eine vollständige eigenständige HTML-Datei in genau EINEM Markdown-Codeblock zurück.",
+  "Websites sollen modern, sauber und hochwertig wirken: klare Typografie, großzügige Abstände, starke visuelle Hierarchie, responsive Layouts, echte Navigation, gute Hover- und Fokuszustände und keine unnötigen Elemente.",
+  "Vermeide generische KI-Webseiten: keine überladenen Kartenraster, keine zufälligen Verläufe, keine riesigen Überschriften ohne Zweck und keine Platzhalter, wenn du sinnvolle Inhalte erzeugen kannst.",
+  "Baue mobile Responsiveness mit ein und achte auf gute Kontraste, semantisches HTML und zugängliche Buttons/Links.",
   "Bei normalem Code darfst du mehrere Dateien mit klaren Dateinamen angeben, aber jeder Codeblock muss eine Sprache haben.",
   "Erkläre Änderungen kurz und vermeide unnötige Wiederholungen.",
   "Wenn du einen Fehler erkennst, korrigiere ihn direkt und nenne die Ursache.",
 ].join("\n");
 
-function validMessages(value: unknown) {
+function validMessages(value: unknown, images: string[] = []) {
   if (!Array.isArray(value)) return [];
   return value.filter((message: unknown) => {
     if (!message || typeof message !== "object") return false;
@@ -29,10 +32,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const messages = validMessages(body?.messages);
+    const images = Array.isArray(body?.images) ? body.images.filter((x: unknown): x is string => typeof x === "string") : [];\n    const messages = validMessages(body?.messages, images);
     if (!messages.length) return res.status(400).json({ error: "Keine gültige Nachricht übergeben." });
 
-    const result = await groqChat([{ role: "system", content: SYSTEM }, ...messages], Boolean(body?.think));
+    const result = await groqChat([{ role: "system", content: SYSTEM }, ...messages], Boolean(body?.think), { vision: images.length > 0 });
     return res.status(200).json({
       ok: true, content: result.content, model: result.model, provider: "groq",
       availableKeys: getGroqKeyCount(),

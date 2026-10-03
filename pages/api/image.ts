@@ -25,12 +25,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       },
       body: JSON.stringify({
         model: process.env.XAI_IMAGE_MODEL || "grok-imagine-image-2.0",
-        prompt,
+        prompt: `Create a polished, high-quality finished image based on this user request. Interpret the request naturally and fill in missing visual details intelligently. Prioritize realistic materials, accurate proportions, coherent lighting, sharp details, clean composition, natural depth, and a professional finished look. Do not make it look like an AI demo, UI mockup, placeholder, or low-detail concept unless the user explicitly asks for that style. User request: ${prompt}`,
         response_format: "url",
         n: 1,
-        aspect_ratio: process.env.XAI_IMAGE_ASPECT_RATIO || "1:1",
+        aspect_ratio: process.env.XAI_IMAGE_ASPECT_RATIO || "auto",
         resolution: process.env.XAI_IMAGE_RESOLUTION || "2k",
-        quality: process.env.XAI_IMAGE_QUALITY || "medium",
+        quality: "medium",
       }),
     });
 

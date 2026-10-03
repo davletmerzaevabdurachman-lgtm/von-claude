@@ -32,7 +32,7 @@ export async function groqChat(
   };
 
   if (options.webSearch && (model === "openai/gpt-oss-20b" || model === "openai/gpt-oss-120b")) {
-    body.tools = [{ type: "browser_search" }];
+    body.tools = [{ type: "browser_search" }];\n    body.tool_choice = "required";
   }
 
   let lastStatus = 502;

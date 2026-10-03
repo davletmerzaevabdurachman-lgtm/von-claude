@@ -2,6 +2,10 @@ let cursor = 0;
 
 function getKeys() {
   return [
+    process.env.TREXOR_GROQ_API_KEY,
+    process.env.TREXOR_GROQ_API_KEY_1,
+    process.env.TREXOR_GROQ_API_KEY_2,
+    process.env.TREXOR_GROQ_API_KEY_3,
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_1,
     process.env.GROQ_API_KEY_2,

@@ -212,7 +212,7 @@ export default function Home(){
       if(lang==="html"){setPreview(code);setOutput("HTML ausgeführt.");}
       else if(lang==="css"){setPreview("<html><body><div class='box'>TREXOR CSS Preview</div><style>"+code+"</style></body></html>");setOutput("CSS ausgeführt.");}
       else if(lang==="javascript"){
-        const safe=code.replace(/<\\/script/gi,"<\\\\/script");
+        const safe=code.split("</script").join("<\\/script");
         setPreview("<html><body><pre id='o'></pre><script>const o=document.getElementById('o');const w=(...a)=>o.textContent+=a.join(' ')+'\\\\n';console.log=w;try{"+safe+"}catch(e){w('ERROR',e.message)}<\\\\/script></body></html>");
         setOutput("JavaScript ausgeführt.");
       }else if(lang==="python"){

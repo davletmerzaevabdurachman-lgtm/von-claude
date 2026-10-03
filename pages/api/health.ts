@@ -15,7 +15,7 @@ export default function handler(
     ok: true,
     groqConfigured: keys.length > 0,
     keysConfigured: keys.length,
-    imageConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
+    imageConfigured: true,
     builderConfigured: Boolean(
       process.env.GITHUB_TOKEN && process.env.BUILDER_SECRET
     ),

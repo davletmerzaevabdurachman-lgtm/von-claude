@@ -8,7 +8,15 @@ function getKeys() {
   ].filter((value): value is string => Boolean(value?.trim()));
 }
 
-export async function groqChat(messages: unknown[], think = false) {
+type GroqOptions = {
+  webSearch?: boolean;
+};
+
+export async function groqChat(
+  messages: unknown[],
+  think = false,
+  options: GroqOptions = {}
+) {
   const keys = getKeys();
   if (!keys.length) throw new Error("TREXOR ist noch nicht mit einem Groq API-Key verbunden.");
 
@@ -16,7 +24,17 @@ export async function groqChat(messages: unknown[], think = false) {
     ? process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b"
     : process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
 
-  const body = { model, messages, stream: false, temperature: think ? 0.7 : 0.5 };
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    stream: false,
+    temperature: think ? 0.7 : 0.5,
+  };
+
+  if (options.webSearch && (model === "openai/gpt-oss-20b" || model === "openai/gpt-oss-120b")) {
+    body.tools = [{ type: "browser_search" }];
+  }
+
   let lastStatus = 502;
   let lastMessage = "Groq ist momentan nicht erreichbar.";
 
@@ -25,7 +43,10 @@ export async function groqChat(messages: unknown[], think = false) {
     try {
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer " + keys[index] },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + keys[index],
+        },
         body: JSON.stringify(body),
       });
 
@@ -33,8 +54,14 @@ export async function groqChat(messages: unknown[], think = false) {
         cursor = index;
         const data = await response.json();
         const content = data?.choices?.[0]?.message?.content;
-        if (typeof content !== "string" || !content.trim()) throw new Error("Groq hat eine leere Antwort geliefert.");
-        return { content, model: data?.model || model };
+        if (typeof content !== "string" || !content.trim()) {
+          throw new Error("Groq hat eine leere Antwort geliefert.");
+        }
+        return {
+          content,
+          model: data?.model || model,
+          citations: data?.citations || [],
+        };
       }
 
       lastStatus = response.status;

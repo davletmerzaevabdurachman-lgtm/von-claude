@@ -275,7 +275,7 @@ export default function Home(){
               </div>
               <div className="dashboard-actions">
                 <button onClick={()=>setMode("chat")}><span className="dash-icon"><Icon name="spark"/></span><b>KI Chat</b><small>Fragen, Ideen & Code</small><Icon name="code"/></button>
-                <button onClick={()=>setMode("image")}><span className="dash-icon"><Icon name="image"/></span><b>Groq 4K Bild</b><small>4096×4096 · Web-Check</small><Icon name="image"/></button>
+                <button onClick={()=>setMode("image")}><span className="dash-icon"><Icon name="image"/></span><b>Grok Bild</b><small>Normales KI-Bild · bis 2K</small><Icon name="image"/></button>
                 <button onClick={()=>setScreen("run")}><span className="dash-icon"><Icon name="play"/></span><b>Run Studio</b><small>Code live ausführen</small><Icon name="play"/></button>
                 <button onClick={()=>{setScreen("run");setLang("html");}}><span className="dash-icon"><Icon name="download"/></span><b>Build Center</b><small>EXE · DEB · APK</small><Icon name="download"/></button>
               </div>

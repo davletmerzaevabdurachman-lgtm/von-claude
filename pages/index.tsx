@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Head from "next/head";
 
 type Lang = "html" | "javascript" | "python" | "css" | "typescript" | "json";
@@ -68,7 +68,7 @@ function CodeCard({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
 
 function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
   const re=/```([\w+-]*)\s*\n?([\s\S]*?)```/g;
-  const parts:JSX.Element[]=[];
+  const parts:ReactNode[]=[];
   let last=0, index=0, match;
   while((match=re.exec(text))){
     const before=text.slice(last,match.index).trim();

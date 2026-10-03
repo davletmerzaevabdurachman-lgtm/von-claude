@@ -1,18 +1,25 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
-export default function handler(_req:NextApiRequest,res:NextApiResponse){
-  const keys=[
+export default function handler(
+  _req: NextApiRequest,
+  res: NextApiResponse
+) {
+  const keys = [
     process.env.GROQ_API_KEY,
     process.env.GROQ_API_KEY_1,
     process.env.GROQ_API_KEY_2,
     process.env.GROQ_API_KEY_3
-  ].filter(Boolean);
+  ].filter((value) => Boolean(value?.trim()));
 
   res.status(200).json({
-    ok:true,
-    groqConfigured:keys.length>0,
-    keysConfigured:keys.length,
-    modelFast:process.env.GROQ_MODEL_FAST||"openai/gpt-oss-20b",
-    modelThink:process.env.GROQ_MODEL_THINK||"openai/gpt-oss-120b"
+    ok: true,
+    groqConfigured: keys.length > 0,
+    keysConfigured: keys.length,
+    imageConfigured: Boolean(process.env.POLLINATIONS_API_KEY),
+    builderConfigured: Boolean(
+      process.env.GITHUB_TOKEN && process.env.BUILDER_SECRET
+    ),
+    modelFast: process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b",
+    modelThink: process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b"
   });
 }

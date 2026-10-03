@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Head from "next/head";
 
 type Lang = "html" | "javascript" | "python" | "css" | "typescript" | "json";
-type Msg = { role:"user"|"assistant"; content:string; imageUrl?:string };
+type Msg = { role:"user"|"assistant"; content:string; imageUrl?:string; attachmentUrl?:string };
 type Chat = { id:string; title:string; messages:Msg[] };
 
 const FENCE = String.fromCharCode(96,96,96);
@@ -87,6 +87,8 @@ export default function Home(){
   const [chats,setChats]=useState<Chat[]>([]);
   const [active,setActive]=useState<string|null>(null);
   const [input,setInput]=useState("");
+  const [attachment,setAttachment]=useState<string|null>(null);
+  const fileRef=useRef<HTMLInputElement>(null);
   const [busy,setBusy]=useState(false);
   const [think,setThink]=useState(true);
   const [mode,setMode]=useState<"chat"|"image">("chat");
@@ -139,7 +141,9 @@ export default function Home(){
     try{
       const r=await fetch("/api/image",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt:history[history.length-1]?.content||""})});
       if(!r.ok){const d=await r.json().catch(()=>null);throw new Error(d?.error||"Bildgenerierung fehlgeschlagen.");}
-      const blob=await r.blob();\n      const url=URL.createObjectURL(blob);
+      const data=await r.json();
+      const url=String(data?.imageUrl||"");
+      if(!url) throw new Error("Grok Imagine hat kein Bild zurückgegeben.");
       setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"",imageUrl:url}]}:x));
     }catch(e){
       const msg=e instanceof Error?e.message:"Bildgenerierung fehlgeschlagen.";
@@ -157,7 +161,7 @@ export default function Home(){
         method:"POST",
         signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:history,think})
+        body:JSON.stringify({messages:history,think,images: attachment ? [attachment] : []})
       });
       const data=await r.json().catch(()=>null);
       if(!r.ok) throw new Error(data?.error||"KI-Anfrage fehlgeschlagen.");
@@ -189,13 +193,21 @@ export default function Home(){
     }finally{abort.current=null;setBusy(false);}
   }
 
+  function chooseImage(file?:File){
+    if(!file || !file.type.startsWith("image/")) return;
+    if(file.size>8*1024*1024){ alert("Das Bild ist zu groß. Maximal 8 MB."); return; }
+    const reader=new FileReader();
+    reader.onload=()=>setAttachment(String(reader.result||""));
+    reader.readAsDataURL(file);
+  }
+
   function send(value?:string){
-    const text=(value??input).trim(); if(!text||busy)return;
+    const text=(value??input).trim(); if((!text&&!attachment)||busy)return;
     const id=active||uid();
-    const history=[...(current?.messages||[]),{role:"user" as const,content:text}];
+    const history=[...(current?.messages||[]),{role:"user" as const,content:text,attachmentUrl:attachment||undefined}];
     const wantsImage=mode==="image"||/(erstell|generier|zeichn|mach|create|generate|draw).*(bild|image|foto|logo|grafik|illustration)/i.test(text);
     setChats(c=>c.some(x=>x.id===id)?c.map(x=>x.id===id?{...x,messages:history}:x):[{id,title:text.slice(0,44),messages:history},...c]);
-    setActive(id);setInput("");setScreen("chat");
+    setActive(id);setInput("");setAttachment(null);setScreen("chat");
     if(wantsImage)askImage(id,history);else askAi(id,history);
   }
 
@@ -245,7 +257,7 @@ export default function Home(){
     }catch(e){setBuildMsg(e instanceof Error?e.message:"Build fehlgeschlagen.");}
   }
 
-  function newChat(){abort.current?.abort();setBusy(false);setActive(null);setInput("");setScreen("chat");setMenu(false);}
+  function newChat(){abort.current?.abort();setBusy(false);setActive(null);setInput("");setAttachment(null);setScreen("chat");setMenu(false);}
 
   return <><Head><title>TREXOR — AI Studio</title><meta name="theme-color" content="#050507"/></Head>
     <div className="app">
@@ -289,7 +301,7 @@ export default function Home(){
           </div>
           <div className="composer-wrap">
             <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button></div>
-            <div className="composer"><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder Code-Idee …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()} onClick={()=>send()}><Icon name="spark"/></button>}</div>
+            <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder lade ein Bild hoch …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
         </section>:<section className="run">
           <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Native Builds laufen isoliert über GitHub Actions.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>

@@ -81,10 +81,9 @@ export async function geminiImage(prompt: string) {
     {
       responseModalities: ["IMAGE"],
       responseFormat: {
-        image: {
-          aspectRatio: process.env.GEMINI_IMAGE_ASPECT_RATIO || "auto",
-          imageSize: process.env.GEMINI_IMAGE_SIZE || "2K",
-        },
+        type: "image",
+        aspect_ratio: process.env.GEMINI_IMAGE_ASPECT_RATIO || "1:1",
+        image_size: process.env.GEMINI_IMAGE_SIZE || "2K",
       },
       thinkingConfig: {
         thinkingLevel: process.env.GEMINI_IMAGE_THINKING || "high",

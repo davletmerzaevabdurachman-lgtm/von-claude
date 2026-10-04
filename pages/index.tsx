@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Head from "next/head";
 
-type Lang = "html" | "javascript" | "python" | "css" | "typescript" | "json";
+type Lang = "html" | "javascript" | "python" | "css" | "typescript" | "json" | "discord";
 type Msg = { role:"user"|"assistant"; content:string; imageUrl?:string; attachmentUrl?:string };
 type Chat = { id:string; title:string; messages:Msg[] };
 
 const FENCE = String.fromCharCode(96,96,96);
 const PYODIDE_JS = "https://cdn.jsdelivr.net/pyodide/v314.0.7/full/pyodide.js";
+const COMMON_PY_PACKAGES = ["numpy","pandas","matplotlib","scipy","sympy","scikit-learn","requests","beautifulsoup4","pillow"];
 const ideas = [
   "Baue eine moderne Gaming-Website mit Animationen",
   "Schreibe einen Python-Taschenrechner",
@@ -237,6 +238,7 @@ export default function Home(){
       });
     }
     py.current=await (window as any).loadPyodide({indexURL:"https://cdn.jsdelivr.net/pyodide/v314.0.7/full/"});
+    await py.current.loadPackage(COMMON_PY_PACKAGES);
     return py.current;
   }
 
@@ -257,6 +259,7 @@ export default function Home(){
         if(result!==undefined&&result!==null)out.push(String(result));
         setOutput(out.join("\\n")||"Python ausgeführt.");
       }else if(lang==="json"){setOutput(JSON.stringify(JSON.parse(code),null,2));}
+      else if(lang==="discord"){setOutput("Discord Bot vorbereitet. Für einen dauerhaft laufenden Bot außerhalb von Vercel: DISCORD_TOKEN setzen und npm run discord:bot auf einem dauerhaften Node-Host starten.");}
       else setOutput("Diese Sprache wird im Browser nicht direkt ausgeführt. Nutze Build.");
     }catch(e){setOutput(e instanceof Error?e.message:"Run fehlgeschlagen.");}
     finally{setRunning(false);}
@@ -320,9 +323,9 @@ export default function Home(){
             <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder lade ein Bild hoch …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()&&!attachment} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
         </section>:<section className="run">
-          <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Native Builds laufen isoliert über GitHub Actions.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>
+          <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Häufige Python-Pakete werden beim ersten Python-Run vorgeladen. Discord-Bots laufen als eigener Node-Prozess.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>
           <div className="studio">
-            <section className="editor"><div className="editor-head"><div className="langs">{(["html","javascript","python","css","typescript","json"] as Lang[]).map(x=><button key={x} className={lang===x?"on":""} onClick={()=>setLang(x)}>{x}</button>)}</div><button className="primary" onClick={run} disabled={running}><Icon name="play"/>{running?"Läuft …":"Run"}</button></div><textarea spellCheck={false} value={code} onChange={e=>setCode(e.target.value)}/></section>
+            <section className="editor"><div className="editor-head"><div className="langs">{(["html","javascript","python","css","typescript","json","discord"] as Lang[]).map(x=><button key={x} className={lang===x?"on":""} onClick={()=>setLang(x)}>{x}</button>)}</div><button className="primary" onClick={run} disabled={running}><Icon name="play"/>{running?"Läuft …":"Run"}</button><button className="toprun" onClick={()=>{setLang("discord");setCode(`import { Client, Events, GatewayIntentBits } from "discord.js";\n\nconst token = process.env.DISCORD_TOKEN;\nconst client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });\nclient.once(Events.ClientReady, ready => console.log("Online:", ready.user.tag));\nclient.on(Events.MessageCreate, message => { if (!message.author.bot && message.content === "!ping") message.reply("Pong!"); });\nclient.login(token);`);setOutput("");setPreview("");}}>Discord Bot</button></div><textarea spellCheck={false} value={code} onChange={e=>setCode(e.target.value)}/></section>
             <section className="preview"><div className="preview-head"><span>OUTPUT</span><div><button onClick={()=>setMobile(v=>!v)}>{mobile?"Desktop":"Mobil"}</button><button onClick={()=>setReload(v=>v+1)}>Neu laden</button></div></div><div className="preview-body">{preview?<iframe key={reload} className={mobile?"phone":""} title="TREXOR Preview" sandbox="allow-scripts" srcDoc={preview}/>:null}{output?<pre>{output}</pre>:null}{!preview&&!output?<div className="empty"><Icon name="play"/>Run drücken</div>:null}</div></section>
           </div>
           <section className="build"><div><em>BUILD CENTER</em><h3>EXE • DEB • APK</h3><p>HTML → EXE / DEB / APK · Python → EXE</p></div><div className="build-right"><input type="password" value={secret} placeholder="Builder Secret" onChange={e=>setSecret(e.target.value)}/><div><button onClick={()=>build("exe")}>EXE</button><button disabled={lang!=="html"} onClick={()=>build("deb")}>DEB</button><button disabled={lang!=="html"} onClick={()=>build("apk")}>APK</button></div>{buildMsg?<small>{buildMsg}</small>:null}</div></section>

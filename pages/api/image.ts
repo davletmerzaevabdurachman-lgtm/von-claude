@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       imageUrl: result.imageUrl,
       model: result.model,
       provider: "gemini",
-      resolution: process.env.GEMINI_IMAGE_SIZE || "2K",
+      resolution: process.env.GEMINI_IMAGE_SIZE || "4K",
     });
   } catch (error) {
     return res.status(502).json({

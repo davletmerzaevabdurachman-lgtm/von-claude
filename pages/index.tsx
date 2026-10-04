@@ -100,7 +100,7 @@ export default function Home(){
   const [mode,setMode]=useState<"chat"|"image"|"homework">("chat");
   const [screen,setScreen]=useState<"chat"|"run">("chat");
   const [lang,setLang]=useState<Lang>("html");
-  const [code,setCode]=useState("<!doctype html>\\n<html><body><h1>TREXOR</h1></body></html>");
+  const [code,setCode]=useState("<!doctype html>\n<html><body><h1>TREXOR</h1></body></html>");
   const [preview,setPreview]=useState("");
   const [output,setOutput]=useState("");
   const [running,setRunning]=useState(false);
@@ -301,21 +301,23 @@ export default function Home(){
 
         {screen==="chat"?<section className="chat">
           <div className="messages">
-            {!messages.length?<div className="hero dashboard-hero compact-dashboard">
-  <div className="compact-title"><div className="compact-mark">T</div><div><span>TREXOR</span><h1>Workspace</h1></div></div>
-  <div className="compact-status">
-    <span>{health?.keysConfigured ?? "—"} Groq Keys</span>
-    <span>{health?.geminiConfigured ? "Gemini bereit" : "Gemini aus"}</span>
-    <span>Studio bereit</span>
+            {!messages.length?<div className="hero dashboard-hero command-dashboard">
+  <div className="command-top">
+    <div className="command-brand"><div className="command-mark">T</div><div><span>TREXOR</span><h1>Was möchtest du bauen?</h1><p>Chatten, Hausaufgaben lösen, Bilder erstellen oder Code direkt ausführen.</p></div></div>
+    <div className="command-badge"><i/>ONLINE</div>
   </div>
-  <div className="compact-actions">
-    <button onClick={()=>setMode("chat")}><Icon name="spark"/><span>Chat</span></button>
-    <button onClick={()=>setMode("homework")}><Icon name="code"/><span>Hausaufgaben</span></button>
-    <button onClick={()=>{setMode("image");setScreen("chat")}}><Icon name="image"/><span>Bilder</span></button>
-    <button onClick={()=>setScreen("run")}><Icon name="play"/><span>Run Studio</span></button>
+  <div className="command-status">
+    <div><span>MODEL</span><strong>{health?.modelThink?.replace("openai/","")||"GPT-OSS"}</strong></div>
+    <div><span>GROQ</span><strong>{health?.keysConfigured ?? "—"} Keys</strong></div>
+    <div><span>GEMINI</span><strong>{health?.geminiConfigured ? "Bereit" : "Nicht verbunden"}</strong></div>
   </div>
-  <div className="ideas-title"><span>Schnell starten</span></div>
-  <div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div>
+  <div className="command-grid">
+    <button onClick={()=>setMode("chat")}><b><Icon name="spark"/></b><span><strong>Chat</strong><small>Fragen, Ideen & Code</small></span><em>→</em></button>
+    <button onClick={()=>setMode("homework")}><b><Icon name="code"/></b><span><strong>Hausaufgaben</strong><small>Aufgabe erklären & lösen</small></span><em>→</em></button>
+    <button onClick={()=>{setMode("image");setScreen("chat")}}><b><Icon name="image"/></b><span><strong>Bilder</strong><small>Mit Gemini generieren</small></span><em>→</em></button>
+    <button onClick={()=>setScreen("run")}><b><Icon name="play"/></b><span><strong>Run Studio</strong><small>Code testen & bauen</small></span><em>→</em></button>
+  </div>
+  <div className="command-prompts"><div className="ideas-title"><span>Schnell starten</span><small>Ein Klick genügt</small></div><div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div></div>
 </div>:messages.map((m,i)=><div key={i} className={"row "+m.role}><div className={m.role==="user"?"bubble":"answer"}>
               {m.role==="user"&&m.attachmentUrl?<img className="attachment-user" src={m.attachmentUrl} alt="Hochgeladenes Bild"/>:null}{m.imageUrl?<><img className="generated" src={m.imageUrl} alt="Generiertes Bild"/><a className="image-open" href={m.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a></>:m.content?<AssistantText text={m.content} onRun={openRun}/>:busy?<div className="typing"><i/><i/><i/>TREXOR schreibt …</div>:null}
               {m.role==="assistant"&&m.content&&!busy&&i===messages.length-1?<div className="message-actions"><button onClick={()=>copyText(m.content)}><Icon name="copy"/>Kopieren</button></div>:null}

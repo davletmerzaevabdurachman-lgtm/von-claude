@@ -72,6 +72,7 @@ function cleanAssistantText(text:string){
 }
 
 function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
+  text=cleanAssistantText(text);
   const re=/```([\w+-]*)\s*\n?([\s\S]*?)```/g;
   const parts:ReactNode[]=[];
   let last=0, index=0, match;
@@ -300,23 +301,22 @@ export default function Home(){
 
         {screen==="chat"?<section className="chat">
           <div className="messages">
-            {!messages.length?<div className="hero dashboard-hero">
-              <div className="dashboard-kicker"><span className="hero-mark">T</span><div><em>TREXOR AI STUDIO</em><h1>Was bauen wir heute?</h1><p>KI, Code, Bilder, Preview und Builds — alles in einem Workspace.</p></div></div>
-              <div className="dashboard-status">
-                <div><b>●</b><span>Groq KI</span><strong>{health?.keysConfigured ?? "—"} Keys</strong></div>
-                <div><b>●</b><span>Fast</span><strong>{health?.modelFast?.replace("openai/","") ?? "GPT-OSS 20B"}</strong></div>
-                <div><b>●</b><span>Think</span><strong>{health?.modelThink?.replace("openai/","") ?? "GPT-OSS 120B"}</strong></div>
-                <div><b>●</b><span>Studio</span><strong>Ready</strong></div>
-              </div>
-              <div className="dashboard-actions">
-                <button onClick={()=>setMode("chat")}><span className="dash-icon"><Icon name="spark"/></span><b>KI Chat</b><small>Fragen, Ideen & Code</small><Icon name="code"/></button><button onClick={()=>setMode("homework")}><span className="dash-icon"><Icon name="code"/></span><b>Hausaufgaben</b><small>Mathe, Deutsch, Englisch & mehr</small><Icon name="spark"/></button>
-                <button onClick={()=>{setMode("image");setScreen("chat")}}><span className="dash-icon"><Icon name="image"/></span><b>Gemini Bild</b><small>Gemini · hochwertiges Bild · bis 4K</small><Icon name="image"/></button>
-                <button onClick={()=>setScreen("run")}><span className="dash-icon"><Icon name="play"/></span><b>Run Studio</b><small>Code live ausführen</small><Icon name="play"/></button>
-                <button onClick={()=>{setScreen("run");setLang("html");}}><span className="dash-icon"><Icon name="download"/></span><b>Build Center</b><small>EXE · DEB · APK</small><Icon name="download"/></button>
-              </div>
-              <div className="ideas-title"><span>Schnell starten</span><small>Eine Idee anklicken</small></div>
-              <div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div>
-            </div>:messages.map((m,i)=><div key={i} className={"row "+m.role}><div className={m.role==="user"?"bubble":"answer"}>
+            {!messages.length?<div className="hero dashboard-hero compact-dashboard">
+  <div className="compact-title"><div className="compact-mark">T</div><div><span>TREXOR</span><h1>Workspace</h1></div></div>
+  <div className="compact-status">
+    <span>{health?.keysConfigured ?? "—"} Groq Keys</span>
+    <span>{health?.geminiConfigured ? "Gemini bereit" : "Gemini aus"}</span>
+    <span>Studio bereit</span>
+  </div>
+  <div className="compact-actions">
+    <button onClick={()=>setMode("chat")}><Icon name="spark"/><span>Chat</span></button>
+    <button onClick={()=>setMode("homework")}><Icon name="code"/><span>Hausaufgaben</span></button>
+    <button onClick={()=>{setMode("image");setScreen("chat")}}><Icon name="image"/><span>Bilder</span></button>
+    <button onClick={()=>setScreen("run")}><Icon name="play"/><span>Run Studio</span></button>
+  </div>
+  <div className="ideas-title"><span>Schnell starten</span></div>
+  <div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div>
+</div>:messages.map((m,i)=><div key={i} className={"row "+m.role}><div className={m.role==="user"?"bubble":"answer"}>
               {m.role==="user"&&m.attachmentUrl?<img className="attachment-user" src={m.attachmentUrl} alt="Hochgeladenes Bild"/>:null}{m.imageUrl?<><img className="generated" src={m.imageUrl} alt="Generiertes Bild"/><a className="image-open" href={m.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a></>:m.content?<AssistantText text={m.content} onRun={openRun}/>:busy?<div className="typing"><i/><i/><i/>TREXOR schreibt …</div>:null}
               {m.role==="assistant"&&m.content&&!busy&&i===messages.length-1?<div className="message-actions"><button onClick={()=>copyText(m.content)}><Icon name="copy"/>Kopieren</button></div>:null}
             </div></div>)}

@@ -14,26 +14,39 @@ async function groqCall(
   messages: Message[],
   reasoningEffort: "none" | "medium" | "high" = "medium"
 ) {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: reasoningEffort === "high" ? 0.55 : 0.45,
+    max_completion_tokens: 16384,
+    stream: false,
+  };
+
+  // GPT-OSS supports reasoning_effort but NOT reasoning_format.
+  // Qwen 3.8 supports both.
+  if (model.startsWith("openai/")) {
+    body.reasoning_effort = reasoningEffort;
+    body.include_reasoning = false;
+  } else if (model.startsWith("qwen/")) {
+    body.reasoning_effort = reasoningEffort;
+    body.reasoning_format = "hidden";
+  }
+
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: "Bearer " + key,
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: reasoningEffort === "high" ? 0.55 : 0.45,
-      reasoning_effort: reasoningEffort,
-      max_completion_tokens: 8192,
-      stream: false,
-      reasoning_format: "hidden",
-    }),
+    body: JSON.stringify(body),
   });
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error?.message || "Groq request failed");
+    throw new Error(
+      data?.error?.message ||
+      `Groq request failed (HTTP ${response.status})`
+    );
   }
 
   const content = data?.choices?.[0]?.message?.content;

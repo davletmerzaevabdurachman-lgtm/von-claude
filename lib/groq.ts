@@ -19,7 +19,7 @@ export async function groqChat(
   options: GroqOptions = {}
 ) {
   const keys = getKeys();
-  if (!keys.length) throw new Error("TREXOR ist noch nicht mit einem Groq API-Key verbunden.");
+  if (!keys.length) throw new Error("Abduls sein ki geht grad nt .");
 
   const model = options.vision
     ? process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b"
@@ -40,7 +40,7 @@ export async function groqChat(
   }
 
   let lastStatus = 502;
-  let lastMessage = "Groq ist momentan nicht erreichbar.";
+  let lastMessage = "Abduls ai  ist momentan nicht erreichbar.";
 
   for (let attempt = 0; attempt < keys.length; attempt++) {
     const index = (cursor + attempt) % keys.length;
@@ -59,7 +59,7 @@ export async function groqChat(
         const data = await response.json();
         const content = data?.choices?.[0]?.message?.content;
         if (typeof content !== "string" || !content.trim()) {
-          throw new Error("Groq hat eine leere Antwort geliefert.");
+          throw new Error("Abduls ki  hat eine leere Antwort geliefert.");
         }
         return {
           content,

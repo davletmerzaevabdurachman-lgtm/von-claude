@@ -1,11 +1,11 @@
 let cursor = 0;
 
 function getKeys() {
-  return [
-    process.env.GROQ_API_KEY_1,
-    process.env.GROQ_API_KEY_2,
-    process.env.GROQ_API_KEY_3,
-  ].filter((value): value is string => Boolean(value?.trim()));
+  return Object.keys(process.env)
+    .filter((name) => /^GROQ_API_KEY_\d+$/.test(name))
+    .sort((a, b) => Number(a.slice(13)) - Number(b.slice(13)))
+    .map((name) => process.env[name]?.trim())
+    .filter((value): value is string => Boolean(value));
 }
 
 type GroqOptions = {

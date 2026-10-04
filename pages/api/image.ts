@@ -30,13 +30,38 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const prompt = String(req.body?.prompt || "").trim();
   if (!prompt) return res.status(400).json({ error: "Bild-Prompt fehlt." });
   try {
+    // Primary image path. If it is unavailable or rate-limited, silently fall back to local generation.
     if (process.env.GEMINI_API_KEY?.trim()) {
-      const result = await ultimateImage(prompt);
-      return res.status(200).json({ ok: true, imageUrl: result.imageUrl, model: result.model, provider: "gemini", resolution: process.env.GEMINI_IMAGE_SIZE || "4K" });
+      try {
+        const result = await ultimateImage(prompt);
+        return res.status(200).json({ ok: true, imageUrl: result.imageUrl, model: result.model, resolution: process.env.GEMINI_IMAGE_SIZE || "4K" });
+      } catch {
+        // Continue to local generation below.
+      }
     }
-    const imageUrl = await localImage(prompt);
-    return res.status(200).json({ ok: true, imageUrl, model: process.env.TREXOR_IMAGE_MODEL || "stabilityai/sdxl-turbo", provider: "local", resolution: "local" });
-  } catch (error) {
-    return res.status(502).json({ error: error instanceof Error ? error.message : "Bildgenerierung fehlgeschlagen." });
+
+    try {
+      const imageUrl = await localImage(prompt);
+      return res.status(200).json({
+        ok: true,
+        imageUrl,
+        model: process.env.ABDULS_IMAGE_MODEL || process.env.TREXOR_IMAGE_MODEL || "stabilityai/sdxl-turbo",
+        resolution: "local"
+      });
+    } catch {
+      return res.status(200).json({
+        ok: false,
+        imageUrl: "",
+        fallback: true,
+        message: "Die Bildfunktion ist gerade kurz ausgelastet. Versuche es gleich noch einmal."
+      });
+    }
+  } catch {
+    return res.status(200).json({
+      ok: false,
+      imageUrl: "",
+      fallback: true,
+      message: "Die Bildfunktion ist gerade kurz ausgelastet. Versuche es gleich noch einmal."
+    });
   }
 }

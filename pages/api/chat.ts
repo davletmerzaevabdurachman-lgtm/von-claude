@@ -56,7 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: "Keine gültige Nachricht übergeben." });
     }
 
-    const result = await ultimateChat(messages as any, { vision: images.length > 0, homework: Boolean(body?.homework), think: body?.think !== false });
+    const result = await ultimateChat(messages as any, { vision: images.length > 0, homework: Boolean(body?.homework), think: body?.think !== false, speed: body?.speed === "fast" || body?.speed === "deep" ? body.speed : "balanced" });
 
     return res.status(200).json({
       ok: true,

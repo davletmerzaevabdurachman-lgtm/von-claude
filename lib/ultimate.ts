@@ -1,5 +1,7 @@
 type Message = { role: "system" | "user" | "assistant"; content: unknown };
 
+let groqCursor = 0;
+
 function groqKeys() {
   return Object.keys(process.env)
     .filter((name) => /^GROQ_API_KEY_\d+$/.test(name))
@@ -125,9 +127,11 @@ export async function ultimateChat(messages: Message[], options: { vision?: bool
       ];
 
   const selected = agents.slice(0, Math.min(agents.length, keys.length));
+  const startKey = groqCursor % keys.length;
+  groqCursor = (groqCursor + selected.length) % keys.length;
   const errors: string[] = [];
   const jobs = selected.map((agent, i) =>
-    groqCall(keys[i], agent.model, buildAgentPrompt(context, agent.role), agent.reasoning)
+    groqCall(keys[(startKey + i) % keys.length], agent.model, buildAgentPrompt(context, agent.role), agent.reasoning)
       .catch((error) => {
         errors.push(error instanceof Error ? error.message : String(error));
         return null;
@@ -188,7 +192,10 @@ export async function ultimateVision(prompt: string, imageData: string) {
     ],
   };
 
-  const selectedKeys = keys.slice(0, 3);
+  const count = Math.min(3, keys.length);
+  const startKey = groqCursor % keys.length;
+  groqCursor = (groqCursor + count) % keys.length;
+  const selectedKeys = Array.from({ length: count }, (_, i) => keys[(startKey + i) % keys.length]);
   const results = await Promise.all(selectedKeys.map((key) =>
     groqCall(
       key,

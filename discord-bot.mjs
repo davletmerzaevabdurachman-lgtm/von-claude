@@ -7,7 +7,11 @@ if (!token) {
 }
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent],
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
+  ]
 });
 
 client.once(Events.ClientReady, (ready) => {
@@ -16,12 +20,13 @@ client.once(Events.ClientReady, (ready) => {
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
-  if (message.content.trim() === "!ping") {
+  if (message.content.trim().toLowerCase() === "!ping") {
     await message.reply("Pong!");
   }
 });
 
 client.on(Events.Error, (error) => console.error("Discord client error:", error));
+
 client.login(token).catch((error) => {
   console.error("Discord login failed:", error);
   process.exit(1);

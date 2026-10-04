@@ -98,11 +98,12 @@ function buildAgentPrompt(context: Message[], role: string) {
   return [{ role: "system" as const, content: SYSTEM + "\n\nSpezialrolle: " + role }, ...context];
 }
 
-export async function ultimateChat(messages: Message[], options: { vision?: boolean; homework?: boolean } = {}) {
+export async function ultimateChat(messages: Message[], options: { vision?: boolean; homework?: boolean; think?: boolean } = {}) {
   const keys = groqKeys();
   if (!keys.length) throw new Error("Kein GROQ_API_KEY_1...GROQ_API_KEY_N konfiguriert.");
 
   const homework = Boolean(options.homework);
+  const think = options.think !== false;
   const context = messages.slice(-24);
   if (homework) {
     context.unshift({
@@ -127,7 +128,8 @@ export async function ultimateChat(messages: Message[], options: { vision?: bool
         { model: modelFast, role: homework ? "Lern-Reviewer. Prüfe Ergebnis, Rechenweg und Verständlichkeit auf Fehler." : "Kritischer Reviewer. Suche Fehler und formuliere die bessere praktische Lösung.", reasoning: "medium" as const },
       ];
 
-  const selected = agents.slice(0, Math.min(agents.length, keys.length));
+  const selectedAgents = think || vision ? agents : agents.map((agent) => ({ ...agent, model: modelFast, reasoning: "none" as const }));
+  const selected = selectedAgents.slice(0, Math.min(selectedAgents.length, keys.length));
   const startKey = groqCursor % keys.length;
   groqCursor = (groqCursor + selected.length) % keys.length;
   const errors: string[] = [];

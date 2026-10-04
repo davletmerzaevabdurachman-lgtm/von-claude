@@ -2,54 +2,10 @@ type Message = { role: "system" | "user" | "assistant"; content: unknown };
 
 function groqKeys() {
   return Object.keys(process.env)
-    .filter((name) => /^GROQ_API_KEY_\d+$/.test(name))
+    .filter((name) => /^GROQ_API_KEY_\\d+$/.test(name))
     .sort((a, b) => Number(a.slice(13)) - Number(b.slice(13)))
     .map((name) => process.env[name]?.trim())
     .filter((x): x is string => Boolean(x));
-}
-
-async function groqCall(
-  key: string,
-  model: string,
-  messages: Message[],
-  reasoningEffort: "none" | "medium" | "high" = "medium"
-) {
-  const body: Record<string, unknown> = {
-    model,
-    messages,
-    temperature: reasoningEffort === "high" ? 0.55 : 0.45,
-    max_completion_tokens: 16384,
-    stream: false,
-  };
-
-  if (model.startsWith("openai/")) {
-    body.reasoning_effort = reasoningEffort;
-    body.include_reasoning = false;
-  } else if (model.startsWith("qwen/")) {
-    body.reasoning_effort = reasoningEffort;
-    body.reasoning_format = "hidden";
-  }
-
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + key,
-    },
-    body: JSON.stringify(body),
-  });
-
-  const data = await response.json().catch(() => null);
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `Groq request failed (HTTP ${response.status})`);
-  }
-
-  const content = data?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || !content.trim()) {
-    throw new Error("Groq returned an empty answer");
-  }
-
-  return { content, model: data?.model || model };
 }
 
 async function geminiInteraction(model: string, input: unknown, responseFormat?: unknown) {

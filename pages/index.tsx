@@ -67,6 +67,10 @@ function CodeCard({lang,code,onRun}:{lang:string;code:string;onRun:()=>void}){
   </div>;
 }
 
+function cleanAssistantText(text:string){
+  return text.split(FENCE).map((part,index)=>index%2===1?part:part.replace(/\*\*([^*]+)\*\*/g,"$1")).join(FENCE);
+}
+
 function AssistantText({text,onRun}:{text:string;onRun:(lang:Lang,code:string)=>void}){
   const re=/```([\w+-]*)\s*\n?([\s\S]*?)```/g;
   const parts:ReactNode[]=[];

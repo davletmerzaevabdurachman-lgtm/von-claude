@@ -97,10 +97,13 @@ export default function Home(){
   const fileRef=useRef<HTMLInputElement>(null);
   const [busy,setBusy]=useState(false);
   const [think,setThink]=useState(true);
+  const [speed,setSpeed]=useState<"fast"|"balanced"|"deep">("balanced");
   const [mode,setMode]=useState<"chat"|"image"|"homework">("chat");
+  const [settingsOpen,setSettingsOpen]=useState(false);
+  const [appearance,setAppearance]=useState({bg:"#050509",text:"#f5f5f8",accent:"#ff1493",backgroundImage:"",font:"Inter"});
   const [screen,setScreen]=useState<"chat"|"run">("chat");
   const [lang,setLang]=useState<Lang>("html");
-  const [code,setCode]=useState("<!doctype html>\n<html><body><h1>TREXOR</h1></body></html>");
+  const [code,setCode]=useState("<!doctype html>\n<html><body><h1>Abduls AI</h1></body></html>");
   const [preview,setPreview]=useState("");
   const [output,setOutput]=useState("");
   const [running,setRunning]=useState(false);
@@ -109,7 +112,6 @@ export default function Home(){
   const [menu,setMenu]=useState(false);
   const [mobile,setMobile]=useState(false);
   const [reload,setReload]=useState(0);
-  const [health,setHealth]=useState<{keysConfigured:number;modelFast:string;modelThink:string;geminiConfigured:boolean;geminiModel:string}|null>(null);
   const end=useRef<HTMLDivElement>(null);
   const abort=useRef<AbortController|null>(null);
   const py=useRef<any>(null);
@@ -117,10 +119,10 @@ export default function Home(){
 
   useEffect(()=>{
     try{
-      const raw=localStorage.getItem("trexor.clean.v1");
+      const raw=localStorage.getItem("abduls-ai.chats.v1");
       const value=raw?JSON.parse(raw):[];
       if(Array.isArray(value)){setChats(value);setActive(value[0]?.id||null);}
-    }catch{localStorage.removeItem("trexor.clean.v1");}
+    }catch{localStorage.removeItem("abduls-ai.chats.v1");}
     loaded.current=true;
   },[]);
   useEffect(()=>{
@@ -136,20 +138,29 @@ export default function Home(){
           imageUrl:undefined
         }))
       }));
-      localStorage.setItem("trexor.clean.v1",JSON.stringify(persistable));
+      localStorage.setItem("abduls-ai.chats.v1",JSON.stringify(persistable));
     }catch{}
   },[chats,busy]);
   useEffect(()=>{const s=sessionStorage.getItem("trexor.build.secret");if(s)setSecret(s);},[]);
-  useEffect(()=>{
-    fetch("/api/health").then(r=>r.ok?r.json():null).then(d=>d&&setHealth({
-      keysConfigured:Number(d.keysConfigured||0),
-      modelFast:String(d.modelFast||"Groq"),
-      modelThink:String(d.modelThink||"Groq Think"),
-      geminiConfigured:Boolean(d.geminiConfigured),
-      geminiModel:String(d.geminiModel||"Gemini")
-    })).catch(()=>{});
-  },[]);
   useEffect(()=>{if(secret)sessionStorage.setItem("trexor.build.secret",secret);},[secret]);
+  useEffect(()=>{
+    try{
+      const raw=localStorage.getItem("abduls-ai.settings.v1");
+      if(raw){
+        const saved=JSON.parse(raw);
+        if(saved?.speed==="fast"||saved?.speed==="balanced"||saved?.speed==="deep") setSpeed(saved.speed);
+        if(saved?.appearance) setAppearance(v=>({...v,...saved.appearance}));
+      }
+    }catch{}
+  },[]);
+  useEffect(()=>{
+    document.documentElement.style.setProperty("--user-bg",appearance.bg);
+    document.documentElement.style.setProperty("--user-text",appearance.text);
+    document.documentElement.style.setProperty("--user-accent",appearance.accent);
+    document.documentElement.style.setProperty("--user-bg-image",appearance.backgroundImage ? 'url("' + appearance.backgroundImage + '")' : "none");
+    document.documentElement.style.setProperty("--user-font",appearance.font);
+    try{localStorage.setItem("abduls-ai.settings.v1",JSON.stringify({speed,appearance}));}catch{}
+  },[speed,appearance]);
 
   const current=chats.find(x=>x.id===active);
   const messages=current?.messages||[];
@@ -181,12 +192,12 @@ export default function Home(){
         method:"POST",
         signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:history,think,homework:mode==="homework",images: imageAttachment ? [imageAttachment] : []})
+        body:JSON.stringify({messages:history,think,homework:mode==="homework",speed,images: imageAttachment ? [imageAttachment] : []})
       });
       const data=await r.json().catch(()=>null);
       if(!r.ok) throw new Error(data?.error||"KI-Anfrage fehlgeschlagen.");
       const content=String(data?.content||"");
-      if(!content.trim()) throw new Error("TREXOR hat keine Antwort erhalten.");
+      if(!content.trim()) throw new Error("Abduls AI hat keine Antwort erhalten.");
 
       // Smooth local typewriter effect; the server itself returns a complete, reliable JSON response.
       for(let i=0;i<content.length;i+=4){
@@ -251,7 +262,7 @@ export default function Home(){
     setRunning(true);setOutput("");
     try{
       if(lang==="html"){setPreview(code);setOutput("HTML ausgeführt.");}
-      else if(lang==="css"){setPreview("<html><body><div class='box'>TREXOR CSS Preview</div><style>"+code+"</style></body></html>");setOutput("CSS ausgeführt.");}
+      else if(lang==="css"){setPreview("<html><body><div class='box'>Abduls AI CSS Preview</div><style>"+code+"</style></body></html>");setOutput("CSS ausgeführt.");}
       else if(lang==="javascript"){
         const safe=code.split("</script").join("<\\/script");
         setPreview("<html><body><pre id='o'></pre><script>const o=document.getElementById('o');const w=(...a)=>o.textContent+=a.join(' ')+'\\\\n';console.log=w;try{"+safe+"}catch(e){w('ERROR',e.message)}<\\\\/script></body></html>");
@@ -283,56 +294,56 @@ export default function Home(){
 
   function newChat(){abort.current?.abort();setBusy(false);setActive(null);setInput("");setAttachment(null);setScreen("chat");setMenu(false);}
 
-  return <><Head><title>TREXOR — AI Studio</title><meta name="theme-color" content="#050507"/></Head>
+  return <><Head><title>Abduls AI</title><meta name="theme-color" content="#ff1493"/></Head>
     <div className="app">
       <aside className={"sidebar "+(menu?"open":"")}>
-        <div className="brand"><div className="brand-logo">T</div><div><b>TREXOR</b><small>AI STUDIO</small></div></div>
+        <div className="brand"><div className="brand-logo">A</div><div><b>ABDULS AI</b><small>DEIN PERSÖNLICHER ASSISTENT</small></div></div>
         <button className="new" onClick={newChat}><span>+</span> Neuer Chat</button>
         <div className="label">Workspace</div>
         <button className={"nav "+(screen==="chat"?"active":"")} onClick={()=>setScreen("chat")}><Icon name="chat"/>Chat</button>
         <button className={"nav "+(screen==="run"?"active":"")} onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button>
         <div className="label">Verlauf</div>
         <nav className="history">{chats.map(x=><div key={x.id} className={"history-item "+(x.id===active?"active":"")}><button onClick={()=>{setActive(x.id);setScreen("chat");setMenu(false);}}>{x.title}</button><button className="del" onClick={()=>{setChats(c=>c.filter(y=>y.id!==x.id));if(x.id===active)setActive(null);}}><Icon name="trash"/></button></div>)}</nav>
-        <div className="online"><i/>Vercel / serverless</div>
+        <div className="online"><i/>Abduls AI ist bereit</div>
       </aside>
 
       <main className="main">
-        <header className="top"><button className="menu" onClick={()=>setMenu(v=>!v)}>☰</button><div><small>{screen==="chat"?"TREXOR CHAT":"TREXOR RUN STUDIO"}</small><span>{screen==="chat"?current?.title||"Neuer Chat":"Code ausführen & bauen"}</span></div><button className="toprun" onClick={()=>setScreen(screen==="chat"?"run":"chat")}><Icon name={screen==="chat"?"play":"chat"}/>{screen==="chat"?"Run":"Chat"}</button></header>
+        <header className="top"><button className="menu" onClick={()=>setMenu(v=>!v)}>☰</button><div><small>{screen==="chat"?"ABDULS AI":"ABDULS AI • RUN STUDIO"}</small><span>{screen==="chat"?current?.title||"Neuer Chat":"Code ausführen & bauen"}</span></div><button className="settings-button" onClick={()=>setSettingsOpen(true)} title="Einstellungen">⚙</button><button className="toprun" onClick={()=>setScreen(screen==="chat"?"run":"chat")}><Icon name={screen==="chat"?"play":"chat"}/>{screen==="chat"?"Run":"Chat"}</button></header>
 
         {screen==="chat"?<section className="chat">
           <div className="messages">
             {!messages.length?<div className="hero dashboard-hero command-dashboard">
   <div className="command-top">
-    <div className="command-brand"><div className="command-mark">T</div><div><span>TREXOR</span><h1>Was möchtest du bauen?</h1><p>Chatten, Hausaufgaben lösen, Bilder erstellen oder Code direkt ausführen.</p></div></div>
+    <div className="command-brand"><div className="command-mark">A</div><div><span>ABDULS AI</span><h1>Was möchtest du heute machen?</h1><p>Chatten, lernen, Bilder erstellen oder Code direkt ausführen.</p></div></div>
     <div className="command-badge"><i/>ONLINE</div>
   </div>
   <div className="command-status">
-    <div><span>MODEL</span><strong>{health?.modelThink?.replace("openai/","")||"GPT-OSS"}</strong></div>
-    <div><span>GROQ</span><strong>{health?.keysConfigured ?? "—"} Keys</strong></div>
-    <div><span>GEMINI</span><strong>{health?.geminiConfigured ? "Bereit" : "Nicht verbunden"}</strong></div>
+    <div><span>KI</span><strong>Automatisch</strong></div>
+    <div><span>ANTWORT</span><strong>{speed==="fast"?"Schnell":speed==="deep"?"Tief":"Ausgewogen"}</strong></div>
+    <div><span>SCHULE</span><strong>Bereit zum Lernen</strong></div>
   </div>
   <div className="command-grid">
     <button onClick={()=>setMode("chat")}><b><Icon name="spark"/></b><span><strong>Chat</strong><small>Fragen, Ideen & Code</small></span><em>→</em></button>
     <button onClick={()=>setMode("homework")}><b><Icon name="code"/></b><span><strong>Hausaufgaben</strong><small>Aufgabe erklären & lösen</small></span><em>→</em></button>
-    <button onClick={()=>{setMode("image");setScreen("chat")}}><b><Icon name="image"/></b><span><strong>Bilder</strong><small>Mit Gemini generieren</small></span><em>→</em></button>
+    <button onClick={()=>{setMode("image");setScreen("chat")}}><b><Icon name="image"/></b><span><strong>Bilder</strong><small>Ideen sichtbar machen</small></span><em>→</em></button>
     <button onClick={()=>setScreen("run")}><b><Icon name="play"/></b><span><strong>Run Studio</strong><small>Code testen & bauen</small></span><em>→</em></button>
   </div>
   <div className="command-prompts"><div className="ideas-title"><span>Schnell starten</span><small>Ein Klick genügt</small></div><div className="ideas">{ideas.map(x=><button key={x} onClick={()=>send(x)}><span>{x}</span><Icon name="spark"/></button>)}</div></div>
 </div>:messages.map((m,i)=><div key={i} className={"row "+m.role}><div className={m.role==="user"?"bubble":"answer"}>
-              {m.role==="user"&&m.attachmentUrl?<img className="attachment-user" src={m.attachmentUrl} alt="Hochgeladenes Bild"/>:null}{m.imageUrl?<><img className="generated" src={m.imageUrl} alt="Generiertes Bild"/><a className="image-open" href={m.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a></>:m.content?<AssistantText text={m.content} onRun={openRun}/>:busy?<div className="typing"><i/><i/><i/>TREXOR schreibt …</div>:null}
+              {m.role==="user"&&m.attachmentUrl?<img className="attachment-user" src={m.attachmentUrl} alt="Hochgeladenes Bild"/>:null}{m.imageUrl?<><img className="generated" src={m.imageUrl} alt="Generiertes Bild"/><a className="image-open" href={m.imageUrl} target="_blank" rel="noreferrer">Bild öffnen</a></>:m.content?<AssistantText text={m.content} onRun={openRun}/>:busy?<div className="typing"><i/><i/><i/>Abduls AI schreibt …</div>:null}
               {m.role==="assistant"&&m.content&&!busy&&i===messages.length-1?<div className="message-actions"><button onClick={()=>copyText(m.content)}><Icon name="copy"/>Kopieren</button></div>:null}
             </div></div>)}
             <div ref={end}/>
           </div>
           <div className="composer-wrap">
-            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="homework"?"on":""} onClick={()=>setMode("homework")}><Icon name="code"/>Hausaufgaben</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button></div>
-            <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":mode==="homework"?"Hausaufgabe eingeben oder Bild vom Arbeitsblatt hochladen …":"Schreib eine Aufgabe, Frage oder lade ein Bild hoch …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()&&!attachment} onClick={()=>send()}><Icon name="spark"/></button>}</div>
+            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="homework"?"on":""} onClick={()=>setMode("homework")}><Icon name="code"/>Schule</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setSettingsOpen(true)}>⚙ Einstellungen</button></div>
+            <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll Abduls AI erstellen?":mode==="homework"?"Hausaufgabe eingeben oder Arbeitsblatt hochladen …":"Schreib deine Frage, Idee oder Aufgabe …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()&&!attachment} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
         </section>:<section className="run">
-          <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Häufige Python-Pakete werden beim ersten Python-Run vorgeladen. Discord-Bots laufen als eigener Node-Prozess.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>
+          <div className="run-head"><div><em>Abduls AI RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Häufige Python-Pakete werden beim ersten Python-Run vorgeladen. Discord-Bots laufen als eigener Node-Prozess.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>
           <div className="studio">
             <section className="editor"><div className="editor-head"><div className="langs">{(["html","javascript","python","css","typescript","json","discord"] as Lang[]).map(x=><button key={x} className={lang===x?"on":""} onClick={()=>setLang(x)}>{x}</button>)}</div><button className="primary" onClick={run} disabled={running}><Icon name="play"/>{running?"Läuft …":"Run"}</button><button className="toprun" onClick={()=>{setLang("discord");setCode(`import { Client, Events, GatewayIntentBits } from "discord.js";\n\nconst token = process.env.DISCORD_TOKEN;\nconst client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });\nclient.once(Events.ClientReady, ready => console.log("Online:", ready.user.tag));\nclient.on(Events.MessageCreate, message => { if (!message.author.bot && message.content === "!ping") message.reply("Pong!"); });\nclient.login(token);`);setOutput("");setPreview("");}}>Discord Bot</button></div><textarea spellCheck={false} value={code} onChange={e=>setCode(e.target.value)}/></section>
-            <section className="preview"><div className="preview-head"><span>OUTPUT</span><div><button onClick={()=>setMobile(v=>!v)}>{mobile?"Desktop":"Mobil"}</button><button onClick={()=>setReload(v=>v+1)}>Neu laden</button></div></div><div className="preview-body">{preview?<iframe key={reload} className={mobile?"phone":""} title="TREXOR Preview" sandbox="allow-scripts" srcDoc={preview}/>:null}{output?<pre>{output}</pre>:null}{!preview&&!output?<div className="empty"><Icon name="play"/>Run drücken</div>:null}</div></section>
+            <section className="preview"><div className="preview-head"><span>OUTPUT</span><div><button onClick={()=>setMobile(v=>!v)}>{mobile?"Desktop":"Mobil"}</button><button onClick={()=>setReload(v=>v+1)}>Neu laden</button></div></div><div className="preview-body">{preview?<iframe key={reload} className={mobile?"phone":""} title="Abduls AI Preview" sandbox="allow-scripts" srcDoc={preview}/>:null}{output?<pre>{output}</pre>:null}{!preview&&!output?<div className="empty"><Icon name="play"/>Run drücken</div>:null}</div></section>
           </div>
           <section className="build"><div><em>BUILD CENTER</em><h3>EXE • DEB • APK</h3><p>HTML → EXE / DEB / APK · Python → EXE</p></div><div className="build-right"><input type="password" value={secret} placeholder="Builder Secret" onChange={e=>setSecret(e.target.value)}/><div><button onClick={()=>build("exe")}>EXE</button><button disabled={lang!=="html"} onClick={()=>build("deb")}>DEB</button><button disabled={lang!=="html"} onClick={()=>build("apk")}>APK</button></div>{buildMsg?<small>{buildMsg}</small>:null}</div></section>
         </section>}

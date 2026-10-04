@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "discord:bot": "node discord-bot.mjs"
+    "discord:bot": "node discord-bot.mjs",
+    "discord:bot:forever": "node discord-bot-forever.mjs"
   },
   "engines": {
     "node": ">=24.17.0"
@@ -15,8 +16,7 @@
     "discord.js": "14.19.3",
     "next": "16.3.8",
     "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "discordjs": "14.19.3"
+    "react-dom": "19.2.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

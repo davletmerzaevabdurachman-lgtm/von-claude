@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 
 function countGroqKeys() {
-  return Object.keys(process.env).filter((name) => /^GROQ_API_KEY_\d+$/.test(name) && Boolean(process.env[name]?.trim())).length;
+  return Object.keys(process.env).filter(
+    (name) => /^GROQ_API_KEY_\d+$/.test(name) && Boolean(process.env[name]?.trim())
+  ).length;
 }
 
 export default function handler(_req: NextApiRequest, res: NextApiResponse) {
@@ -23,6 +25,6 @@ export default function handler(_req: NextApiRequest, res: NextApiResponse) {
     modelVision: process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b",
     geminiModel: process.env.GEMINI_MODEL || "gemini-3.8-flash",
     discordConfigured: Boolean(process.env.DISCORD_TOKEN?.trim()),
-    pythonPreload: true,
+    pythonPreload: true
   });
 }

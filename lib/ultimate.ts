@@ -100,9 +100,15 @@ export async function ultimateChat(messages: Message[], options: { vision?: bool
   const keys = groqKeys();
   if (!keys.length) throw new Error("Kein GROQ_API_KEY_1...GROQ_API_KEY_N konfiguriert.");
 
-  const context = messages.slice(-24);\n  if (homework) {\n    context.unshift({\n      role: "system",\n      content: "HAUSAUFGABEN-MODUS: Erkläre schulische Aufgaben verständlich Schritt für Schritt. Gib bei konkreten Aufgaben auch die Lösung. Passe die Erklärung an das Niveau der Aufgabe an. Keine unnötigen Sternchen oder Fettschrift."\n    });\n  }
-  const vision = Boolean(options.vision);\n  const homework = Boolean(options.homework);
-  const modelFast = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
+  const homework = Boolean(options.homework);
+  const context = messages.slice(-24);
+  if (homework) {
+    context.unshift({
+      role: "system",
+      content: "HAUSAUFGABEN-MODUS: Erkläre schulische Aufgaben verständlich Schritt für Schritt. Gib bei konkreten Aufgaben auch die Lösung. Passe die Erklärung an das Niveau der Aufgabe an. Keine unnötigen Sternchen oder Fettschrift."
+    });
+  }
+  const vision = Boolean(options.vision);\n  const modelFast = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
   const modelThink = process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b";
   const modelVision = process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b";
 

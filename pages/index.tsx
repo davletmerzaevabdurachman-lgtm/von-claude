@@ -347,6 +347,46 @@ export default function Home(){
           </div>
           <section className="build"><div><em>BUILD CENTER</em><h3>EXE • DEB • APK</h3><p>HTML → EXE / DEB / APK · Python → EXE</p></div><div className="build-right"><input type="password" value={secret} placeholder="Builder Secret" onChange={e=>setSecret(e.target.value)}/><div><button onClick={()=>build("exe")}>EXE</button><button disabled={lang!=="html"} onClick={()=>build("deb")}>DEB</button><button disabled={lang!=="html"} onClick={()=>build("apk")}>APK</button></div>{buildMsg?<small>{buildMsg}</small>:null}</div></section>
         </section>}
+
+      {settingsOpen?<div className="settings-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setSettingsOpen(false)}}>
+        <section className="settings-panel">
+          <div className="settings-head">
+            <div><small>ABDULS AI</small><h2>Einstellungen</h2><p>Gestalte die Oberfläche selbst und wähle, wie die KI antworten soll.</p></div>
+            <button className="settings-close" onClick={()=>setSettingsOpen(false)}>×</button>
+          </div>
+          <div className="settings-grid">
+            <div className="settings-card">
+              <h3>Antworttempo</h3>
+              <p>Wähle zwischen schnellen, ausgewogenen und besonders gründlichen Antworten.</p>
+              <div className="speed-grid">
+                <button className={speed==="fast"?"selected":""} onClick={()=>setSpeed("fast")}><strong>Schnell</strong><small>Direkt und flott</small></button>
+                <button className={speed==="balanced"?"selected":""} onClick={()=>setSpeed("balanced")}><strong>Mittel</strong><small>Guter Mix aus Tempo und Tiefe</small></button>
+                <button className={speed==="deep"?"selected":""} onClick={()=>setSpeed("deep")}><strong>Langsam</strong><small>Gründlicher prüfen und denken</small></button>
+              </div>
+            </div>
+            <div className="settings-card">
+              <h3>Farben</h3>
+              <div className="color-row"><label>Hintergrund</label><input type="color" value={appearance.bg} onChange={e=>setAppearance(v=>({...v,bg:e.target.value}))}/><code>{appearance.bg}</code></div>
+              <div className="color-row"><label>Schrift</label><input type="color" value={appearance.text} onChange={e=>setAppearance(v=>({...v,text:e.target.value}))}/><code>{appearance.text}</code></div>
+              <div className="color-row"><label>Akzent</label><input type="color" value={appearance.accent} onChange={e=>setAppearance(v=>({...v,accent:e.target.value}))}/><code>{appearance.accent}</code></div>
+            </div>
+            <div className="settings-card">
+              <h3>Hintergrundbild</h3>
+              <p>Optional eine eigene Bild-URL verwenden.</p>
+              <input className="settings-input" value={appearance.backgroundImage} placeholder="Bild-URL einfügen …" onChange={e=>setAppearance(v=>({...v,backgroundImage:e.target.value}))}/>
+            </div>
+            <div className="settings-card">
+              <h3>Schrift</h3>
+              <select className="settings-input" value={appearance.font} onChange={e=>setAppearance(v=>({...v,font:e.target.value}))}>
+                <option value="Inter">Inter</option>
+                <option value="system-ui">System</option>
+                <option value="ui-monospace">Monospace</option>
+              </select>
+              <button className="settings-reset" onClick={()=>{setSpeed("balanced");setAppearance({bg:"#050509",text:"#f5f5f8",accent:"#ff1493",backgroundImage:"",font:"Inter"});}}>Auf Standard zurücksetzen</button>
+            </div>
+          </div>
+        </section>
+      </div>:null}
       </main>
     </div>
   </>;

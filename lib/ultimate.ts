@@ -2,10 +2,54 @@ type Message = { role: "system" | "user" | "assistant"; content: unknown };
 
 function groqKeys() {
   return Object.keys(process.env)
-    .filter((name) => /^GROQ_API_KEY_\\d+$/.test(name))
+    .filter((name) => /^GROQ_API_KEY_\d+$/.test(name))
     .sort((a, b) => Number(a.slice(13)) - Number(b.slice(13)))
     .map((name) => process.env[name]?.trim())
     .filter((x): x is string => Boolean(x));
+}
+
+async function groqCall(
+  key: string,
+  model: string,
+  messages: Message[],
+  reasoningEffort: "none" | "medium" | "high" = "medium"
+) {
+  const body: Record<string, unknown> = {
+    model,
+    messages,
+    temperature: reasoningEffort === "high" ? 0.55 : 0.45,
+    max_completion_tokens: 16384,
+    stream: false
+  };
+
+  if (model.startsWith("openai/")) {
+    body.reasoning_effort = reasoningEffort;
+    body.include_reasoning = false;
+  } else if (model.startsWith("qwen/")) {
+    body.reasoning_effort = reasoningEffort;
+    body.reasoning_format = "hidden";
+  }
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: "Bearer " + key
+    },
+    body: JSON.stringify(body)
+  });
+
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `Groq request failed (HTTP ${response.status})`);
+  }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) {
+    throw new Error("Groq returned an empty answer");
+  }
+
+  return { content, model: data?.model || model };
 }
 
 async function geminiInteraction(model: string, input: unknown, responseFormat?: unknown) {
@@ -52,12 +96,12 @@ function buildAgentPrompt(context: Message[], role: string) {
   return [{ role: "system" as const, content: SYSTEM + "\n\nSpezialrolle: " + role }, ...context];
 }
 
-export async function ultimateChat(messages: Message[], options: { vision?: boolean } = {}) {
+export async function ultimateChat(messages: Message[], options: { vision?: boolean; homework?: boolean } = {}) {
   const keys = groqKeys();
   if (!keys.length) throw new Error("Kein GROQ_API_KEY_1...GROQ_API_KEY_N konfiguriert.");
 
-  const context = messages.slice(-24);
-  const vision = Boolean(options.vision);
+  const context = messages.slice(-24);\n  if (homework) {\n    context.unshift({\n      role: "system",\n      content: "HAUSAUFGABEN-MODUS: Erkläre schulische Aufgaben verständlich Schritt für Schritt. Gib bei konkreten Aufgaben auch die Lösung. Passe die Erklärung an das Niveau der Aufgabe an. Keine unnötigen Sternchen oder Fettschrift."\n    });\n  }
+  const vision = Boolean(options.vision);\n  const homework = Boolean(options.homework);
   const modelFast = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
   const modelThink = process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b";
   const modelVision = process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b";
@@ -69,9 +113,9 @@ export async function ultimateChat(messages: Message[], options: { vision?: bool
         { model: modelVision, role: "Multimodaler Problemlöser. Verbinde Bildinhalt und Nutzerfrage.", reasoning: "high" as const },
       ]
     : [
-        { model: modelFast, role: "Schneller Generalist. Löse die Aufgabe direkt und praktisch.", reasoning: "medium" as const },
-        { model: modelThink, role: "Deep-Reasoning-Experte. Prüfe Logik, Code, Mathematik und Edge Cases streng.", reasoning: "high" as const },
-        { model: modelFast, role: "Kritischer Reviewer. Suche Fehler und formuliere die bessere praktische Lösung.", reasoning: "medium" as const },
+        { model: modelFast, role: homework ? "Lerncoach. Löse die Hausaufgabe und erkläre den Lösungsweg verständlich Schritt für Schritt. Nutze keine unnötigen Sternchen." : "Schneller Generalist. Löse die Aufgabe direkt und praktisch.", reasoning: "medium" as const },
+        { model: modelThink, role: homework ? "Schulischer Fachexperte. Prüfe die Lösung sorgfältig und erkläre schwierige Schritte einfach." : "Deep-Reasoning-Experte. Prüfe Logik, Code, Mathematik und Edge Cases streng.", reasoning: "high" as const },
+        { model: modelFast, role: homework ? "Lern-Reviewer. Prüfe Ergebnis, Rechenweg und Verständlichkeit auf Fehler." : "Kritischer Reviewer. Suche Fehler und formuliere die bessere praktische Lösung.", reasoning: "medium" as const },
       ];
 
   const selected = agents.slice(0, Math.min(agents.length, keys.length));

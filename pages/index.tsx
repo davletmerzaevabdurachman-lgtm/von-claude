@@ -92,7 +92,7 @@ export default function Home(){
   const fileRef=useRef<HTMLInputElement>(null);
   const [busy,setBusy]=useState(false);
   const [think,setThink]=useState(true);
-  const [mode,setMode]=useState<"chat"|"image">("chat");
+  const [mode,setMode]=useState<"chat"|"image"|"homework">("chat");
   const [screen,setScreen]=useState<"chat"|"run">("chat");
   const [lang,setLang]=useState<Lang>("html");
   const [code,setCode]=useState("<!doctype html>\\n<html><body><h1>TREXOR</h1></body></html>");
@@ -176,7 +176,7 @@ export default function Home(){
         method:"POST",
         signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:history,think,images: imageAttachment ? [imageAttachment] : []})
+        body:JSON.stringify({messages:history,think,homework:mode==="homework",images: imageAttachment ? [imageAttachment] : []})
       });
       const data=await r.json().catch(()=>null);
       if(!r.ok) throw new Error(data?.error||"KI-Anfrage fehlgeschlagen.");
@@ -305,7 +305,7 @@ export default function Home(){
                 <div><b>●</b><span>Studio</span><strong>Ready</strong></div>
               </div>
               <div className="dashboard-actions">
-                <button onClick={()=>setMode("chat")}><span className="dash-icon"><Icon name="spark"/></span><b>KI Chat</b><small>Fragen, Ideen & Code</small><Icon name="code"/></button>
+                <button onClick={()=>setMode("chat")}><span className="dash-icon"><Icon name="spark"/></span><b>KI Chat</b><small>Fragen, Ideen & Code</small><Icon name="code"/></button><button onClick={()=>setMode("homework")}><span className="dash-icon"><Icon name="code"/></span><b>Hausaufgaben</b><small>Mathe, Deutsch, Englisch & mehr</small><Icon name="spark"/></button>
                 <button onClick={()=>{setMode("image");setScreen("chat")}}><span className="dash-icon"><Icon name="image"/></span><b>Gemini Bild</b><small>Gemini · hochwertiges Bild · bis 4K</small><Icon name="image"/></button>
                 <button onClick={()=>setScreen("run")}><span className="dash-icon"><Icon name="play"/></span><b>Run Studio</b><small>Code live ausführen</small><Icon name="play"/></button>
                 <button onClick={()=>{setScreen("run");setLang("html");}}><span className="dash-icon"><Icon name="download"/></span><b>Build Center</b><small>EXE · DEB · APK</small><Icon name="download"/></button>
@@ -319,8 +319,8 @@ export default function Home(){
             <div ref={end}/>
           </div>
           <div className="composer-wrap">
-            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button></div>
-            <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":"Schreib eine Aufgabe, Frage oder lade ein Bild hoch …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()&&!attachment} onClick={()=>send()}><Icon name="spark"/></button>}</div>
+            <div className="modes"><button className={mode==="chat"?"on":""} onClick={()=>setMode("chat")}><Icon name="spark"/>Chat</button><button className={mode==="homework"?"on":""} onClick={()=>setMode("homework")}><Icon name="code"/>Hausaufgaben</button><button className={mode==="image"?"on":""} onClick={()=>setMode("image")}><Icon name="image"/>Bild</button><button onClick={()=>setScreen("run")}><Icon name="play"/>Run Studio</button><span/><button className="think" onClick={()=>setThink(v=>!v)}>{think?"Think ON":"Think OFF"}</button></div>
+            <div className="composer"><input ref={fileRef} type="file" accept="image/*" hidden onChange={e=>chooseImage(e.target.files?.[0])}/>{attachment?<div className="attachment"><img src={attachment} alt="Upload"/><button onClick={()=>setAttachment(null)}>×</button></div>:null}<button className="attach" onClick={()=>fileRef.current?.click()} title="Bild hochladen"><Icon name="image"/></button><textarea rows={1} value={input} placeholder={mode==="image"?"Was soll TREXOR erzeugen?":mode==="homework"?"Hausaufgabe eingeben oder Bild vom Arbeitsblatt hochladen …":"Schreib eine Aufgabe, Frage oder lade ein Bild hoch …"} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send();}}}/>{busy?<button className="send stop" onClick={()=>abort.current?.abort()}><Icon name="stop"/></button>:<button className="send" disabled={!input.trim()&&!attachment} onClick={()=>send()}><Icon name="spark"/></button>}</div>
           </div>
         </section>:<section className="run">
           <div className="run-head"><div><em>TREXOR RUN STUDIO</em><h2>Code → Run → Build</h2><p>Live-Preview für Web-Code und Python direkt im Browser. Häufige Python-Pakete werden beim ersten Python-Run vorgeladen. Discord-Bots laufen als eigener Node-Prozess.</p></div><button className="toprun" onClick={()=>{const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([code],{type:"text/plain"}));a.download=lang==="python"?"main.py":lang==="javascript"?"main.js":"index.html";a.click();}}><Icon name="download"/>Download</button></div>

@@ -143,6 +143,25 @@ export async function ultimateChat(messages: Message[], options: { vision?: bool
 
   const drafts = (await Promise.all(jobs)).filter(Boolean) as Array<{content:string;model:string}>;
   if (!drafts.length) throw new Error("Alle Groq-Anfragen sind fehlgeschlagen: " + (errors.slice(0, 3).join(" | ") || "Unbekannter Fehler."));
+  // Second-pass critic: reviewers receive the actual drafts instead of working independently.
+  if (drafts.length > 1) {
+    const reviewPrompt = context.concat({
+      role: "user",
+      content: "Prüfe diese Entwürfe gegeneinander. Identifiziere konkrete Fehler oder Widersprüche und gib danach eine verbesserte, fertige Antwort zurück. ENTWÜRFE:\n\n" +
+        drafts.map((d, i) => "ENTWURF " + (i + 1) + ":\n" + d.content).join("\n\n---\n\n")
+    });
+    try {
+      const critic = await groqCall(
+        keys[(startKey + selected.length) % keys.length],
+        modelThink,
+        buildAgentPrompt(reviewPrompt, "Lead-Reviewer. Vergleiche die Entwürfe, korrigiere sie und liefere die beste fertige Antwort."),
+        think ? "high" : "none"
+      );
+      drafts.push(critic);
+    } catch (error) {
+      errors.push(error instanceof Error ? error.message : String(error));
+    }
+  }
 
   let final = drafts[0].content;
   let provider = drafts.length > 1 ? "groq-ensemble" : "groq";

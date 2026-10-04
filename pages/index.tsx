@@ -119,7 +119,19 @@ export default function Home(){
   },[]);
   useEffect(()=>{
     if(!loaded.current||busy)return;
-    try{localStorage.setItem("trexor.clean.v1",JSON.stringify(chats.slice(0,30)));}catch{}
+    try{
+      const persistable=chats.slice(0,30).map(chat=>({
+        ...chat,
+        messages:chat.messages.map(message=>({
+          role:message.role,
+          content:message.content,
+          // Large base64 image payloads must never fill localStorage.
+          attachmentUrl:undefined,
+          imageUrl:undefined
+        }))
+      }));
+      localStorage.setItem("trexor.clean.v1",JSON.stringify(persistable));
+    }catch{}
   },[chats,busy]);
   useEffect(()=>{const s=sessionStorage.getItem("trexor.build.secret");if(s)setSecret(s);},[]);
   useEffect(()=>{
@@ -153,7 +165,7 @@ export default function Home(){
     }finally{setBusy(false);}
   }
 
-  async function askAi(chatId:string,history:Msg[]){
+  async function askAi(chatId:string,history:Msg[],imageAttachment:string|null=null){
     setBusy(true);
     const index=history.length;
     setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:""}]}:x));
@@ -163,7 +175,7 @@ export default function Home(){
         method:"POST",
         signal:controller.signal,
         headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({messages:history,think,images: attachment ? [attachment] : []})
+        body:JSON.stringify({messages:history,think,images: imageAttachment ? [imageAttachment] : []})
       });
       const data=await r.json().catch(()=>null);
       if(!r.ok) throw new Error(data?.error||"KI-Anfrage fehlgeschlagen.");
@@ -210,7 +222,7 @@ export default function Home(){
     const wantsImage=mode==="image"||/(erstell|generier|zeichn|mach|create|generate|draw).*(bild|image|foto|logo|grafik|illustration)/i.test(text);
     setChats(c=>c.some(x=>x.id===id)?c.map(x=>x.id===id?{...x,messages:history}:x):[{id,title:text.slice(0,44),messages:history},...c]);
     setActive(id);setInput("");setAttachment(null);setScreen("chat");
-    if(wantsImage)askImage(id,history);else askAi(id,history);
+    if(wantsImage)askImage(id,history);else askAi(id,history,attachment);
   }
 
   function openRun(l:Lang,c:string){
@@ -240,7 +252,9 @@ export default function Home(){
       }else if(lang==="python"){
         const p=await ensurePy(),out:string[]=[];
         p.setStdout({batched:(v:string)=>out.push(v)});p.setStderr({batched:(v:string)=>out.push(v)});
-        const result=p.runPython(code); if(result!==undefined&&result!==null)out.push(String(result));
+        await p.loadPackagesFromImports(code);
+        const result=await p.runPythonAsync(code);
+        if(result!==undefined&&result!==null)out.push(String(result));
         setOutput(out.join("\\n")||"Python ausgeführt.");
       }else if(lang==="json"){setOutput(JSON.stringify(JSON.parse(code),null,2));}
       else setOutput("Diese Sprache wird im Browser nicht direkt ausgeführt. Nutze Build.");
@@ -289,7 +303,7 @@ export default function Home(){
               </div>
               <div className="dashboard-actions">
                 <button onClick={()=>setMode("chat")}><span className="dash-icon"><Icon name="spark"/></span><b>KI Chat</b><small>Fragen, Ideen & Code</small><Icon name="code"/></button>
-                <button onClick={()=>{setMode("image");setScreen("chat")}}><span className="dash-icon"><Icon name="image"/></span><b>Gemini Bild</b><small>Gemini · normales Bild · bis 2K</small><Icon name="image"/></button>
+                <button onClick={()=>{setMode("image");setScreen("chat")}}><span className="dash-icon"><Icon name="image"/></span><b>Gemini Bild</b><small>Gemini · hochwertiges Bild · bis 4K</small><Icon name="image"/></button>
                 <button onClick={()=>setScreen("run")}><span className="dash-icon"><Icon name="play"/></span><b>Run Studio</b><small>Code live ausführen</small><Icon name="play"/></button>
                 <button onClick={()=>{setScreen("run");setLang("html");}}><span className="dash-icon"><Icon name="download"/></span><b>Build Center</b><small>EXE · DEB · APK</small><Icon name="download"/></button>
               </div>

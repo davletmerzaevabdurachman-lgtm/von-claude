@@ -174,11 +174,13 @@ export default function Home(){
       if(!r.ok){const d=await r.json().catch(()=>null);throw new Error(d?.error||"Bildgenerierung fehlgeschlagen.");}
       const data=await r.json();
       const url=String(data?.imageUrl||"");
-      if(!url) throw new Error("Gemini hat kein Bild zurückgegeben.");
-      setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"",imageUrl:url}]}:x));
-    }catch(e){
-      const msg=e instanceof Error?e.message:"Bildgenerierung fehlgeschlagen.";
-      setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"**Fehler:** "+msg}]}:x));
+      if(url){
+        setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"",imageUrl:url}]}:x));
+      }else{
+        setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:String(data?.message||"Die Bildfunktion ist gerade kurz ausgelastet. Versuche es gleich noch einmal.")}] }:x));
+      }
+    }catch{
+      setChats(c=>c.map(x=>x.id===chatId?{...x,messages:[...x.messages,{role:"assistant",content:"Die Bildfunktion ist gerade kurz ausgelastet. Versuche es gleich noch einmal."}]}:x));
     }finally{setBusy(false);}
   }
 

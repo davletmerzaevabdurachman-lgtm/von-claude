@@ -177,3 +177,50 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   .command-status>div:last-child{grid-column:span 2}
   .command-grid{grid-template-columns:1fr}
 }
+
+/* Abduls AI personalization */
+:root{
+  --accent:var(--user-accent,#ff1493);
+  --accentsoft:color-mix(in srgb,var(--user-accent,#ff1493) 12%,transparent);
+  --bg:var(--user-bg,#050509);
+  --text:var(--user-text,#f5f5f8);
+  --user-bg-image:none;
+  --user-font:Inter;
+}
+html,body{background-color:var(--user-bg);color:var(--user-text);font-family:var(--user-font),system-ui,sans-serif}
+body{background-image:linear-gradient(rgba(5,5,9,.82),rgba(5,5,9,.92)),var(--user-bg-image),radial-gradient(circle at 50% -15%,color-mix(in srgb,var(--user-accent,#ff1493) 13%,transparent),transparent 34%)}
+.app{background:transparent}
+.brand b,.hero em,.run-head em,.build em{color:var(--user-accent,#ff1493)}
+.brand-logo,.hero-mark,.command-grid button>b,.primary,.send{background:var(--user-accent,#ff1493);color:#000}
+.nav.active{box-shadow:inset 2px 0 var(--user-accent,#ff1493)}
+.online i,.typing i{background:var(--user-accent,#ff1493)}
+.bubble{background:var(--user-accent,#ff1493);color:#08080a}
+.settings-button{width:36px;height:36px;display:grid;place-items:center;border:1px solid var(--hairline);border-radius:10px;color:#aaaab2;font-size:16px}
+.settings-button:hover{color:var(--user-accent,#ff1493);background:var(--accentsoft)}
+.settings-overlay{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72);backdrop-filter:blur(14px)}
+.settings-panel{width:min(760px,100%);max-height:min(86vh,760px);overflow:auto;border:1px solid var(--hairline);border-radius:20px;background:#0b0b10;box-shadow:0 30px 100px rgba(0,0,0,.55);padding:20px}
+.settings-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-start;margin-bottom:18px}
+.settings-head small{color:var(--user-accent,#ff1493);font-size:9px;letter-spacing:.18em}
+.settings-head h2{margin:5px 0;font-size:28px;letter-spacing:-.04em}
+.settings-head p{margin:0;color:#777780;font-size:12px}
+.settings-close{width:34px;height:34px;border:1px solid var(--hairline);border-radius:9px;color:#aaaab2;font-size:22px}
+.settings-close:hover{background:#17171c;color:#fff}
+.settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.settings-card{padding:14px;border:1px solid var(--hairline);border-radius:14px;background:#0e0e13}
+.settings-card h3{margin:0 0 5px;font-size:12px}
+.settings-card p{margin:0 0 12px;color:#6f6f78;font-size:10px;line-height:1.5}
+.speed-grid{display:grid;grid-template-columns:1fr;gap:6px}
+.speed-grid button{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border:1px solid var(--hairline);border-radius:10px;background:#0a0a0e;text-align:left}
+.speed-grid button strong{font-size:10px}
+.speed-grid button small{color:#686870;font-size:9px}
+.speed-grid button.selected{border-color:var(--user-accent,#ff1493);background:color-mix(in srgb,var(--user-accent,#ff1493) 8%,#0a0a0e)}
+.color-row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.color-row:last-child{border-bottom:0}
+.color-row label{font-size:10px;color:#b5b5bc}
+.color-row input{width:34px;height:24px;padding:0;border:0;background:transparent}
+.color-row code{color:#66666f;font:9px ui-monospace,monospace}
+.settings-input{width:100%;padding:10px;border:1px solid var(--hairline);border-radius:9px;background:#08080b;color:#eee;outline:0}
+.settings-input:focus{border-color:var(--user-accent,#ff1493)}
+.settings-reset{margin-top:10px;padding:8px 10px;border:1px solid var(--hairline);border-radius:8px;color:#888892;font-size:10px}
+.settings-reset:hover{color:#fff;border-color:var(--user-accent,#ff1493)}
+@media(max-width:700px){.settings-grid{grid-template-columns:1fr}.settings-panel{padding:15px}.settings-head h2{font-size:24px}}

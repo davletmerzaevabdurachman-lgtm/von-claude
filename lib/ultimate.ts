@@ -10,6 +10,25 @@ function groqKeys() {
     .filter((x): x is string => Boolean(x));
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRateLimit(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /rate limit|rate_limit|429|too many requests|tokens per minute|requests per minute/i.test(message);
+}
+
+function compactMessages(messages: Message[], maxMessages = 10, maxChars = 3600) {
+  return messages.slice(-maxMessages).map((message) => {
+    if (typeof message.content !== "string") return message;
+    const content = message.content.length > maxChars
+      ? "…" + message.content.slice(-maxChars)
+      : message.content;
+    return { ...message, content };
+  });
+}
+
 async function groqCall(
   key: string,
   model: string,
@@ -19,8 +38,8 @@ async function groqCall(
   const body: Record<string, unknown> = {
     model,
     messages,
-    temperature: reasoningEffort === "high" ? 0.55 : 0.45,
-    max_completion_tokens: 16384,
+    temperature: reasoningEffort === "high" ? 0.5 : 0.45,
+    max_completion_tokens: reasoningEffort === "high" ? 8192 : 4096,
     stream: false
   };
 
@@ -43,20 +62,55 @@ async function groqCall(
 
   const data = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new Error(data?.error?.message || `Groq request failed (HTTP ${response.status})`);
+    const error = new Error(data?.error?.message || `Groq request failed (HTTP ${response.status})`);
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
   }
 
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string" || !content.trim()) {
-    throw new Error("Groq returned an empty answer");
+    throw new Error("Empty answer");
   }
 
   return { content, model: data?.model || model };
 }
 
+async function tryGroq(
+  keys: string[],
+  preferredModel: string,
+  fallbackModel: string,
+  messages: Message[],
+  reasoning: "none" | "medium" | "high"
+) {
+  if (!keys.length) return null;
+
+  const models = preferredModel === fallbackModel ? [preferredModel] : [preferredModel, fallbackModel];
+  const start = groqCursor % keys.length;
+  const attempts = Math.min(keys.length, 6);
+  const errors: string[] = [];
+
+  for (const model of models) {
+    for (let i = 0; i < attempts; i++) {
+      const key = keys[(start + i) % keys.length];
+      try {
+        const result = await groqCall(key, model, messages, reasoning);
+        groqCursor = (start + i + 1) % keys.length;
+        return result;
+      } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+        if (isRateLimit(error)) {
+          await sleep(Math.min(1800 + i * 450, 3500));
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
 async function geminiInteraction(model: string, input: unknown, responseFormat?: unknown) {
   const key = process.env.GEMINI_API_KEY?.trim();
-  if (!key) throw new Error("GEMINI_API_KEY fehlt.");
+  if (!key) throw new Error("fallback unavailable");
 
   const body: Record<string, unknown> = { model, input };
   if (responseFormat) body.response_format = responseFormat;
@@ -68,7 +122,7 @@ async function geminiInteraction(model: string, input: unknown, responseFormat?:
   });
 
   const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.error?.message || "Gemini request failed");
+  if (!response.ok) throw new Error("fallback unavailable");
   return data;
 }
 
@@ -79,165 +133,130 @@ function geminiText(data: any) {
 }
 
 const SYSTEM = [
-  "Du bist TREXOR, ein extrem leistungsfähiger AI-Agent für Coding, Recherche, Debugging, Schreiben, Mathematik und kreative Aufgaben.",
-  "Verstehe zuerst die eigentliche Absicht des Nutzers und löse genau diese Aufgabe.",
-  "Antworte immer in der Sprache des Nutzers und passe Ton und Detailgrad an.",
-  "Sei direkt, natürlich, präzise und praktisch. Kein unnötiges Gelaber und keine erfundenen Fakten.",
-  "Prüfe schwierige Aufgaben intern auf Annahmen, Edge Cases, Abhängigkeiten und Fehler.",
-  "Bei Code: liefere vollständigen, syntaktisch korrekten und direkt nutzbaren Code. Keine TODO-Platzhalter.",
-  "Bei bestehendem Code: analysiere die Ursache, ändere so wenig wie nötig und gib eine konkrete funktionierende Lösung.",
-  "Bei Debugging: nenne kurz den Fehlergrund und gib direkt die korrigierte Version.",
-  "Bei Websites und Apps: denke wie ein Senior-Full-Stack-Entwickler und baue echte Funktionen, responsive UX und Fehlerbehandlung.",
-  "Bei Architektur: bevorzuge einfache, wartbare und robuste Lösungen.",
-  "Bei Code-Generierung: berücksichtige Sicherheit, Validierung, Performance, Barrierefreiheit und mobile Nutzung, wenn relevant.",
-  "Keine künstlichen Agenten-Erwähnungen. Gib die fertige Antwort direkt an den Nutzer.",
-  "FORMATIERUNG: Verwende keine Markdown-Fettschrift und keine Sternchen zur Hervorhebung. Keine # Überschriften am Anfang. Kurze Absätze, Listen mit '-', Code in dreifachen Backticks mit Sprachangabe.",
+  "Du bist Abduls AI, ein leistungsfähiger, natürlicher Assistent für Schule, Coding, Recherche, Schreiben, Mathematik und kreative Aufgaben.",
+  "Verstehe zuerst die eigentliche Absicht und löse genau diese Aufgabe.",
+  "Antworte in der Sprache des Nutzers und klinge natürlich, freundlich und menschlich. Keine künstlichen Agenten-Erwähnungen.",
+  "Sei direkt, präzise und praktisch. Kein unnötiges Gelaber und keine erfundenen Fakten.",
+  "Bei Hausaufgaben: Erkläre verständlich Schritt für Schritt, passe dich dem Niveau an und prüfe das Ergebnis.",
+  "Bei Code: liefere vollständigen, syntaktisch korrekten und direkt nutzbaren Code.",
+  "Bei bestehenden Fehlern: erkläre kurz die Ursache und gib direkt die funktionierende Lösung.",
+  "Bei Websites und Apps: denke wie ein Senior-Full-Stack-Entwickler und achte auf UX, Sicherheit, Performance und mobile Nutzung.",
+  "FORMATTIERUNG: Keine Markdown-Fettschrift und keine Sternchen zur Hervorhebung. Kurze natürliche Absätze. Code in dreifachen Backticks mit Sprachangabe."
 ].join("\n");
 
-function buildAgentPrompt(context: Message[], role: string) {
-  return [{ role: "system" as const, content: SYSTEM + "\n\nSpezialrolle: " + role }, ...context];
+function buildPrompt(context: Message[], role: string) {
+  return [{ role: "system" as const, content: SYSTEM + "\n\nArbeitsweise: " + role }, ...context];
 }
 
-export async function ultimateChat(messages: Message[], options: { vision?: boolean; homework?: boolean; think?: boolean } = {}) {
+export async function ultimateChat(
+  messages: Message[],
+  options: { vision?: boolean; homework?: boolean; think?: boolean; speed?: "fast" | "balanced" | "deep" } = {}
+) {
   const keys = groqKeys();
-  if (!keys.length) throw new Error("Kein GROQ_API_KEY_1...GROQ_API_KEY_N konfiguriert.");
-
   const homework = Boolean(options.homework);
-  const think = options.think !== false;
-  const context = messages.slice(-24);
+  const vision = Boolean(options.vision);
+  const speed = options.speed || (options.think === false ? "fast" : "balanced");
+
+  const context = compactMessages(messages, vision ? 6 : homework ? 10 : 9, vision ? 2200 : homework ? 3000 : 3600);
   if (homework) {
     context.unshift({
       role: "system",
-      content: "HAUSAUFGABEN-MODUS: Erkläre schulische Aufgaben verständlich Schritt für Schritt. Gib bei konkreten Aufgaben auch die Lösung. Passe die Erklärung an das Niveau der Aufgabe an. Keine unnötigen Sternchen oder Fettschrift."
+      content: "LERNMODUS: Hilf beim Verstehen. Zeige Rechenschritte, Beispiele, kurze Wissenschecks und eine klare Endlösung. Wenn ein Foto vorhanden ist, arbeite nur mit tatsächlich erkennbaren Angaben."
     });
   }
-  const vision = Boolean(options.vision);
+
   const modelFast = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
   const modelThink = process.env.GROQ_MODEL_THINK || "openai/gpt-oss-120b";
-  const modelVision = process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b";
+  const modelVision = process.env.GROQ_MODEL_VISION || modelFast;
 
-  const agents = vision
-    ? [
-        { model: modelVision, role: "Vision-Experte. Analysiere Bilder genau und behaupte nichts, was nicht erkennbar ist.", reasoning: "high" as const },
-        { model: modelVision, role: "Unabhängiger Bildprüfer. Suche gezielt nach übersehenen Details.", reasoning: "high" as const },
-        { model: modelVision, role: "Multimodaler Problemlöser. Verbinde Bildinhalt und Nutzerfrage.", reasoning: "high" as const },
-      ]
-    : [
-        { model: modelFast, role: homework ? "Lerncoach. Löse die Hausaufgabe und erkläre den Lösungsweg verständlich Schritt für Schritt. Nutze keine unnötigen Sternchen." : "Schneller Generalist. Löse die Aufgabe direkt und praktisch.", reasoning: "medium" as const },
-        { model: modelThink, role: homework ? "Schulischer Fachexperte. Prüfe die Lösung sorgfältig und erkläre schwierige Schritte einfach." : "Deep-Reasoning-Experte. Prüfe Logik, Code, Mathematik und Edge Cases streng.", reasoning: "high" as const },
-        { model: modelFast, role: homework ? "Lern-Reviewer. Prüfe Ergebnis, Rechenweg und Verständlichkeit auf Fehler." : "Kritischer Reviewer. Suche Fehler und formuliere die bessere praktische Lösung.", reasoning: "medium" as const },
-      ];
-
-  const selectedAgents = think || vision ? agents : agents.map((agent) => ({ ...agent, model: modelFast, reasoning: "none" as const }));
-  const selected = selectedAgents.slice(0, Math.min(selectedAgents.length, keys.length));
-  const startKey = groqCursor % keys.length;
-  groqCursor = (groqCursor + selected.length) % keys.length;
-  const errors: string[] = [];
-  const jobs = selected.map((agent, i) =>
-    groqCall(keys[(startKey + i) % keys.length], agent.model, buildAgentPrompt(context, agent.role), agent.reasoning)
-      .catch((error) => {
-        errors.push(error instanceof Error ? error.message : String(error));
-        return null;
-      })
-  );
-
-  const drafts = (await Promise.all(jobs)).filter(Boolean) as Array<{content:string;model:string}>;
-  if (!drafts.length) throw new Error("Alle Groq-Anfragen sind fehlgeschlagen: " + (errors.slice(0, 3).join(" | ") || "Unbekannter Fehler."));
-  // Second-pass critic: reviewers receive the actual drafts instead of working independently.
-  if (drafts.length > 1) {
-    const reviewPrompt = context.concat({
-      role: "user",
-      content: "Prüfe diese Entwürfe gegeneinander. Identifiziere konkrete Fehler oder Widersprüche und gib danach eine verbesserte, fertige Antwort zurück. ENTWÜRFE:\n\n" +
-        drafts.map((d, i) => "ENTWURF " + (i + 1) + ":\n" + d.content).join("\n\n---\n\n")
-    });
-    try {
-      const critic = await groqCall(
-        keys[(startKey + selected.length) % keys.length],
-        modelThink,
-        buildAgentPrompt(reviewPrompt, "Lead-Reviewer. Vergleiche die Entwürfe, korrigiere sie und liefere die beste fertige Antwort."),
-        think ? "high" : "none"
-      );
-      drafts.push(critic);
-    } catch (error) {
-      errors.push(error instanceof Error ? error.message : String(error));
-    }
+  let preferredModel = speed === "deep" ? modelThink : modelFast;
+  let reasoning: "none" | "medium" | "high" = speed === "fast" ? "none" : speed === "deep" ? "high" : "medium";
+  if (vision) {
+    preferredModel = modelVision;
+    reasoning = "high";
   }
 
-  let final = drafts[0].content;
-  let provider = drafts.length > 1 ? "groq-ensemble" : "groq";
-  let finalModel = drafts.map((x) => x.model).join(" + ");
+  const role = vision
+    ? "Analysiere Bilder sorgfältig und beschreibe nur Erkennbares."
+    : homework
+      ? "Du bist ein geduldiger Schulcoach. Erkläre die Aufgabe so, dass der Nutzer sie danach selbst versteht."
+      : speed === "deep"
+        ? "Arbeite besonders gründlich, prüfe Annahmen und Fehler vor der Antwort."
+        : speed === "fast"
+          ? "Antworte schnell, klar und ohne unnötige Umwege."
+          : "Arbeite ausgewogen: verständlich, gründlich und trotzdem kompakt.";
 
+  const result = await tryGroq(keys, preferredModel, modelFast, buildPrompt(context, role), reasoning);
+  if (result) {
+    return { content: result.content, provider: "primary", model: result.model, usedGroqKeys: 1, agentCount: 1 };
+  }
+
+  // A separate final fallback is attempted silently. Provider names never reach the UI.
   if (process.env.GEMINI_API_KEY?.trim()) {
     try {
-      const packed = drafts.map((x, i) => "AGENT " + (i + 1) + " (" + x.model + "):\n" + x.content).join("\n\n---\n\n");
-      const judgePrompt = [
-        "Du bist der finale Qualitäts-Agent von TREXOR.",
-        "Erstelle aus den Agent-Antworten die beste einzelne Antwort für den Nutzer.",
-        "Bewerte Korrektheit, Vollständigkeit, Code-Qualität und Befolgung der Nutzeranweisung.",
-        "Korrigiere Widersprüche und offensichtliche Fehler.",
-        "Keine Erwähnung der Agenten oder internen Bewertung.",
-        "Keine Markdown-Fettschrift und keine Sternchen zur Hervorhebung.",
-        "Gib ausschließlich die fertige Nutzerantwort zurück.",
+      const fallbackPrompt = [
+        "Beantworte die Nutzeranfrage als Abduls AI.",
+        "Klinge natürlich und menschlich. Bei Schule: verständlich erklären und Lösung zeigen.",
+        "Keine Erwähnung interner Systeme, Modelle, Anbieter oder Rate Limits.",
         "",
-        "NUTZERKONTEXT:", JSON.stringify(context),
-        "",
-        "AGENT-ANTWORTEN:", packed,
+        JSON.stringify(context)
       ].join("\n");
-
       const data = await geminiInteraction(
         process.env.GEMINI_MODEL || "gemini-3.8-flash",
-        [{ role: "user", content: [{ type: "text", text: judgePrompt }] }]
+        [{ role: "user", content: [{ type: "text", text: fallbackPrompt }] }]
       );
       const text = geminiText(data);
-      if (text) {
-        final = text;
-        provider = "groq-ensemble+gemini";
-        finalModel += " + " + (process.env.GEMINI_MODEL || "gemini-3.8-flash");
-      }
+      if (text) return { content: text, provider: "fallback", model: "automatic", usedGroqKeys: 0, agentCount: 1 };
     } catch {
-      // Groq remains the fallback.
+      // Continue to a non-error user message below.
     }
   }
 
-  return { content: final, provider, model: finalModel, usedGroqKeys: selected.length, agentCount: drafts.length };
+  return {
+    content: "Ich bin gerade kurz ausgelastet. Deine Nachricht ist angekommen — warte einen Moment und sende sie einfach noch einmal.",
+    provider: "graceful",
+    model: "automatic",
+    usedGroqKeys: 0,
+    agentCount: 0
+  };
 }
 
 export async function ultimateVision(prompt: string, imageData: string) {
   const keys = groqKeys();
-  if (!keys.length) throw new Error("Kein Groq-Key konfiguriert.");
-
   const imageMessage = {
     role: "user" as const,
     content: [
-      { type: "text", text: prompt || "Analysiere dieses Bild vollständig und präzise. Beschreibe nur tatsächlich erkennbare Informationen." },
+      { type: "text", text: prompt || "Analysiere dieses Bild sorgfältig. Beschreibe nur tatsächlich erkennbare Informationen." },
       { type: "image_url", image_url: { url: imageData } },
     ],
   };
 
-  const count = Math.min(3, keys.length);
-  const startKey = groqCursor % keys.length;
-  groqCursor = (groqCursor + count) % keys.length;
-  const selectedKeys = Array.from({ length: count }, (_, i) => keys[(startKey + i) % keys.length]);
-  const results = await Promise.all(selectedKeys.map((key) =>
-    groqCall(
-      key,
-      process.env.GROQ_MODEL_VISION || "qwen/qwen3.8-27b",
-      [
-        { role: "system", content: SYSTEM + "\nDu bist der Vision-Spezialist. Prüfe das Bild sorgfältig." },
-        imageMessage,
-      ],
-      "high"
-    ).catch(() => null)
-  ));
+  const modelFast = process.env.GROQ_MODEL_FAST || "openai/gpt-oss-20b";
+  const modelVision = process.env.GROQ_MODEL_VISION || modelFast;
+  const result = await tryGroq(
+    keys,
+    modelVision,
+    modelFast,
+    [{ role: "system", content: SYSTEM }, imageMessage],
+    "high"
+  );
 
-  const drafts = results.filter(Boolean) as Array<{content:string;model:string}>;
-  if (!drafts.length) throw new Error("Vision-Analyse fehlgeschlagen.");
+  if (result) {
+    return { content: result.content, provider: "primary", model: result.model };
+  }
 
-  return {
-    content: drafts.length === 1 ? drafts[0].content : drafts.map(x => x.content).join("\n\n"),
-    provider: "groq-vision-ensemble",
-    model: drafts.map(x => x.model).join(" + "),
-  };
+  if (process.env.GEMINI_API_KEY?.trim()) {
+    try {
+      const data = await geminiInteraction(
+        process.env.GEMINI_MODEL || "gemini-3.8-flash",
+        [{ role: "user", content: [{ type: "text", text: prompt || "Analysiere das hochgeladene Bild." }, { type: "image_url", image_url: { url: imageData } }] }]
+      );
+      const text = geminiText(data);
+      if (text) return { content: text, provider: "fallback", model: "automatic" };
+    } catch {}
+  }
+
+  return { content: "Ich kann das Bild gerade nicht zuverlässig auswerten. Bitte versuche es gleich noch einmal.", provider: "graceful", model: "automatic" };
 }
 
 export async function ultimateImage(prompt: string) {
@@ -245,8 +264,7 @@ export async function ultimateImage(prompt: string) {
   const enhancedPrompt = [
     "Generate the final image requested by the user.",
     "Make it polished, coherent, detailed and visually intentional.",
-    "Do not return a placeholder, wireframe, UI mockup or explanation unless requested.",
-    "If the user specifies text in the image, render it exactly when possible.",
+    "Do not return a placeholder, wireframe or explanation unless requested.",
     "User request:", prompt.trim(),
   ].join("\n");
 
@@ -257,10 +275,10 @@ export async function ultimateImage(prompt: string) {
   });
 
   const image = data?.output_image;
-  if (!image?.data) throw new Error(data?.error?.message || "Gemini hat kein Bild zurückgegeben.");
+  if (!image?.data) throw new Error("Bild konnte gerade nicht erstellt werden.");
   return {
     imageUrl: "data:" + (image.mime_type || "image/png") + ";base64," + image.data,
-    model,
+    model: "automatic",
   };
 }
 

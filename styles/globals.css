@@ -139,3 +139,41 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   .compact-actions{grid-template-columns:1fr 1fr}
   .compact-dashboard .ideas{grid-template-columns:1fr}
 }
+
+
+/* TREXOR command dashboard */
+.command-dashboard{max-width:900px;margin:6vh auto 0;text-align:left}
+.command-top{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.command-brand{display:flex;align-items:center;gap:15px}
+.command-mark{width:48px;height:48px;display:grid;place-items:center;flex:none;border:1px solid var(--hairline);border-radius:14px;background:#fff;color:#000;font-size:20px;font-weight:900}
+.command-brand span{display:block;color:#777780;font-size:9px;font-weight:700;letter-spacing:.18em}
+.command-brand h1{margin:4px 0 4px;font-size:clamp(28px,4vw,42px);font-weight:720;letter-spacing:-.045em}
+.command-brand p{margin:0;color:#777780;font-size:12px}
+.command-badge{display:flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--hairline);border-radius:999px;color:#9999a2;font-size:8px;letter-spacing:.12em}
+.command-badge i{width:5px;height:5px;border-radius:50%;background:#fff}
+.command-status{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:24px 0 9px}
+.command-status>div{padding:10px 12px;border:1px solid var(--hairline);border-radius:10px;background:#0b0b0e}
+.command-status span{display:block;color:#5f5f68;font-size:8px;letter-spacing:.14em;margin-bottom:4px}
+.command-status strong{display:block;color:#d8d8dd;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.command-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.command-grid button{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;min-height:74px;padding:12px;border:1px solid var(--hairline);border-radius:12px;background:#0b0b0e;text-align:left;transition:.15s}
+.command-grid button:hover{background:#111115;border-color:#414149;transform:translateY(-1px)}
+.command-grid button>b{width:31px;height:31px;display:grid;place-items:center;border-radius:9px;background:#fff;color:#000}
+.command-grid button>b svg{width:14px;height:14px}
+.command-grid button span{display:flex;flex-direction:column;gap:3px}
+.command-grid button strong{font-size:11px;color:#eeeef1;font-weight:650}
+.command-grid button small{font-size:9px;color:#686870}
+.command-grid button em{font-style:normal;color:#55555e;font-size:16px}
+.command-prompts{margin-top:22px}
+.command-prompts .ideas{margin-top:8px}
+.command-prompts .ideas button{min-height:44px}
+@media(max-width:700px){
+  .command-dashboard{margin-top:3vh}
+  .command-top{gap:12px}
+  .command-badge{display:none}
+  .command-brand h1{font-size:28px}
+  .command-brand p{font-size:11px}
+  .command-status{grid-template-columns:1fr 1fr}
+  .command-status>div:last-child{grid-column:span 2}
+  .command-grid{grid-template-columns:1fr}
+}
